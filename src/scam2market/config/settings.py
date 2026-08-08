@@ -1,0 +1,53 @@
+from functools import lru_cache
+from typing import Annotated, Any, cast
+
+from pydantic import AnyUrl, Field, field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    app_name: str = "Scam2Market Backend"
+    environment: str = "development"
+    log_level: str = "INFO"
+
+    database_url: str = Field(
+        default="postgresql+asyncpg://scam2market:scam2market@localhost:5432/scam2market"
+    )
+    redis_url: str = "redis://localhost:6379/0"
+    redpanda_bootstrap_servers: str = "localhost:19092"
+
+    neo4j_uri: str = "bolt://localhost:7687"
+    neo4j_user: str = "neo4j"
+    neo4j_password: str = "scam2market-password"
+
+    qdrant_url: AnyUrl | str = "http://localhost:6333"
+    mlflow_tracking_uri: AnyUrl | str = "http://localhost:5000"
+
+    allowed_origins: Annotated[list[str], NoDecode] = [
+        "http://localhost:3000",
+        "http://localhost:5173",
+    ]
+    raw_archive_path: str = "./data/raw"
+    author_pseudonymization_key: str = "development-only-change-me"
+    market_freshness_threshold_seconds: int = Field(default=30, gt=0)
+    social_freshness_threshold_seconds: int = Field(default=300, gt=0)
+    feature_allowed_lateness_seconds: int = Field(default=120, ge=0)
+
+    @field_validator("allowed_origins", mode="before")
+    @classmethod
+    def parse_allowed_origins(cls, value: Any) -> list[str]:
+        if isinstance(value, str):
+            return [origin.strip() for origin in value.split(",") if origin.strip()]
+        return cast(list[str], value)
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()

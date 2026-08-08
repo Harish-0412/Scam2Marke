@@ -1,0 +1,225 @@
+services:
+  api:
+    build: .
+    command: uvicorn scam2market.main:app --host 0.0.0.0 --port 8000 --reload
+    env_file:
+      - .env.example
+    environment:
+      DATABASE_URL: postgresql+asyncpg://scam2market:scam2market@postgres:5432/scam2market
+      REDIS_URL: redis://redis:6379/0
+      REDPANDA_BOOTSTRAP_SERVERS: redpanda:9092
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./src:/app/src
+      - ./alembic:/app/alembic
+      - ./scripts:/app/scripts
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      topic-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  migrate:
+    build: .
+    command: alembic upgrade head
+    env_file:
+      - .env.example
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  topic-init:
+    build: .
+    command: python scripts/create_topics.py
+    env_file:
+      - .env.example
+    depends_on:
+      redpanda:
+        condition: service_healthy
+
+  feature-worker:
+    build: .
+    command: scam2market-feature-worker
+    env_file:
+      - .env.example
+    volumes:
+      - ./src:/app/src
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      topic-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  intelligence-worker:
+    build: .
+    command: scam2market-intelligence-worker
+    env_file:
+      - .env.example
+    volumes:
+      - ./src:/app/src
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      topic-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  outbox-worker:
+    build: .
+    command: scam2market-outbox-worker
+    env_file:
+      - .env.example
+    volumes:
+      - ./src:/app/src
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      topic-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  market-ingestor:
+    build: .
+    command: scam2market-market-ingestor
+    profiles: ["demo"]
+    env_file:
+      - .env.example
+    volumes:
+      - ./src:/app/src
+      - raw-data:/app/data/raw
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      topic-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  social-ingestor:
+    build: .
+    command: scam2market-social-ingestor
+    profiles: ["demo"]
+    env_file:
+      - .env.example
+    volumes:
+      - ./src:/app/src
+      - raw-data:/app/data/raw
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      topic-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  replay-scheduler:
+    build: .
+    command: scam2market-replay
+    profiles: ["demo"]
+    env_file:
+      - .env.example
+    volumes:
+      - ./src:/app/src
+      - raw-data:/app/data/raw
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      topic-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  postgres:
+    image: timescale/timescaledb:latest-pg16
+    environment:
+      POSTGRES_DB: scam2market
+      POSTGRES_USER: scam2market
+      POSTGRES_PASSWORD: scam2market
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U scam2market -d scam2market"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redpanda:
+    image: redpandadata/redpanda:latest
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp=1
+      - --memory=1G
+      - --reserve-memory=0M
+      - --node-id=0
+      - --check=false
+      - --kafka-addr=PLAINTEXT://0.0.0.0:9092,OUTSIDE://0.0.0.0:19092
+      - --advertise-kafka-addr=PLAINTEXT://redpanda:9092,OUTSIDE://localhost:19092
+      - --pandaproxy-addr=0.0.0.0:8082
+      - --advertise-pandaproxy-addr=localhost:8082
+    ports:
+      - "9092:9092"
+      - "19092:19092"
+      - "9644:9644"
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -E 'Healthy:.+true'"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  neo4j:
+    image: neo4j:5-community
+    profiles: ["intelligence"]
+    environment:
+      NEO4J_AUTH: neo4j/scam2market-password
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    volumes:
+      - neo4j-data:/data
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    profiles: ["intelligence"]
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant-data:/qdrant/storage
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:latest
+    profiles: ["intelligence"]
+    command: mlflow server --host 0.0.0.0 --port 5000
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow-data:/mlflow
+
+volumes:
+  postgres-data:
+  raw-data:
+  neo4j-data:
+  qdrant-data:
+  mlflow-data:
