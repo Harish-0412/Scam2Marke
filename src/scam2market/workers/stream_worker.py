@@ -4,7 +4,7 @@ from scam2market.common.logging import configure_logging, get_logger
 from scam2market.config.settings import get_settings
 from scam2market.db.session import AsyncSessionLocal
 from scam2market.features.engine import FeatureWindowEngine, FeatureWindowService
-from scam2market.features.schemas import FeatureSignal, SignalKind
+from scam2market.features.schemas import FeatureSignal, SignalKind, SourceDomain
 from scam2market.features.signals import market_signal, social_signals
 from scam2market.ingestion.market import normalize_market_event
 from scam2market.ingestion.repositories import SqlFeatureRepository
@@ -24,7 +24,9 @@ async def run() -> None:
     publisher = EventPublisher()
     service = FeatureWindowService(
         engine=FeatureWindowEngine(
-            allowed_lateness_seconds=settings.feature_allowed_lateness_seconds
+            intervals_seconds=tuple(settings.feature_window_intervals_seconds),
+            allowed_lateness_seconds=settings.feature_allowed_lateness_seconds,
+            source_idle_after_seconds=settings.feature_source_idle_after_seconds,
         ),
         repository=SqlFeatureRepository(AsyncSessionLocal),
         state=state,
@@ -60,10 +62,14 @@ async def run() -> None:
                                 event_time=event.event_time,
                                 ingested_at=event.ingested_at,
                                 kind=SignalKind.data_quality,
+                                source_domain=SourceDomain.market,
                                 values={
                                     "domain": "market",
                                     "source_gap_count": health.get("sequence_gap_count", 0),
                                     "status": health.get("status"),
+                                    "source_active": health.get("source_active", True),
+                                    "source_idle": health.get("source_idle", False),
+                                    "source_degraded": health.get("source_degraded", False),
                                 },
                             )
                         )
@@ -115,10 +121,14 @@ async def _process_social_pair(
                     event_time=mention_event.event_time,
                     ingested_at=mention_event.ingested_at,
                     kind=SignalKind.data_quality,
+                    source_domain=SourceDomain.social,
                     values={
                         "domain": "social",
                         "source_gap_count": health.get("sequence_gap_count", 0),
                         "status": health.get("status"),
+                        "source_active": health.get("source_active", True),
+                        "source_idle": health.get("source_idle", False),
+                        "source_degraded": health.get("source_degraded", False),
                     },
                 )
             )

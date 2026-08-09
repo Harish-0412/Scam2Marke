@@ -1,0 +1,31 @@
+feature_schema: surveillance-features-v2
+ordered_features:
+  - price_return
+  - volume
+  - relative_volume
+  - volatility
+  - spread
+  - top_n_depth
+  - orderbook_imbalance
+  - orderbook_valid
+  - trade_count
+  - buy_sell_pressure
+  - market_data_freshness_seconds
+  - market_source_active
+  - market_source_idle
+  - market_source_degraded
+  - mention_count
+  - unique_author_count
+  - author_concentration
+  - repost_reply_ratio
+  - hashtag_velocity
+  - url_concentration
+  - new_author_ratio
+  - social_data_freshness_seconds
+  - social_source_active
+  - social_source_idle
+  - social_source_degraded
+  - social_lead_seconds
+  - source_gap_count
+  - data_quality_score
+  - baseline_confidence

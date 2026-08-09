@@ -24,7 +24,9 @@ def test_canonical_event_contains_required_temporal_fields() -> None:
     assert event.event_time == now
     assert event.ingested_at == now
     assert event.processed_at is None
-    assert event.dedupe_key() == "synthetic:trade-1"
+    assert event.origin_event_id == "synthetic:trade-1"
+    assert event.delivery_event_id == event.event_id
+    assert event.dedupe_key() == event.delivery_event_id
 
 
 def test_replay_event_requires_replay_session_id() -> None:

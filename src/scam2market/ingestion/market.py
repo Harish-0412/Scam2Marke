@@ -6,7 +6,6 @@ from typing import Protocol
 from uuid import NAMESPACE_URL, uuid5
 
 from scam2market.common.time import utc_now
-from scam2market.ingestion.archive import RawEventArchive
 from scam2market.ingestion.quality import SourceQualityTracker
 from scam2market.schemas.domain import MarketCandle, MarketTrade, OrderBookUpdate
 from scam2market.schemas.events import CanonicalEvent, EventType, ReplayMetadata
@@ -26,12 +25,6 @@ class MarketProvider(Protocol):
     source: str
 
     def stream(self, replay_session_id: str | None = None) -> AsyncIterator[CanonicalEvent]: ...
-
-
-class MarketRepository(Protocol):
-    async def persist(self, event: CanonicalEvent, datum: MarketDatum, topic: str) -> bool: ...
-
-    async def mark_published(self, event_id: str) -> None: ...
 
 
 def _datum_id(datum: MarketDatum) -> str:
@@ -95,8 +88,14 @@ class ReplayProvider:
                 if delay > 0:
                     await asyncio.sleep(delay)
             source_event_id = _datum_id(datum)
+            origin_event_id = f"{self.source}:{source_event_id}"
+            delivery_event_id = str(
+                uuid5(NAMESPACE_URL, f"{self.source}:{session_id}:{source_event_id}")
+            )
             yield CanonicalEvent(
-                event_id=str(uuid5(NAMESPACE_URL, f"{self.source}:{session_id}:{source_event_id}")),
+                event_id=delivery_event_id,
+                origin_event_id=origin_event_id,
+                delivery_event_id=delivery_event_id,
                 event_type=_event_type(datum),
                 schema_version=1,
                 source=self.source,
@@ -125,8 +124,20 @@ class SyntheticProvider(ReplayProvider):
         source: str = "synthetic-market-v1",
         clock: Callable[[], datetime] = utc_now,
     ) -> None:
+        baseline_start = datetime(2026, 1, 1, 11, 55, tzinfo=UTC)
         start = datetime(2026, 1, 1, 12, 1, tzinfo=UTC)
-        records: list[MarketDatum] = []
+        records: list[MarketDatum] = [
+            MarketTrade(
+                trade_id=f"synthetic-baseline-{index:03d}",
+                asset_id=asset_id,
+                event_time=baseline_start + timedelta(minutes=index),
+                price=1.0,
+                quantity=100.0,
+                side="BUY" if index % 2 == 0 else "SELL",
+                source=source,
+            )
+            for index in range(5)
+        ]
         prices = [1.0, 1.01, 0.99, 1.02, 1.01, 1.05, 1.18, 1.42, 1.31, 1.08]
         quantities = [100, 95, 105, 98, 110, 180, 650, 1200, 900, 1400]
         for index, (price, quantity) in enumerate(zip(prices, quantities, strict=True)):
@@ -202,17 +213,13 @@ class MarketIngestionService:
     def __init__(
         self,
         *,
-        repository: MarketRepository,
         dedupe: DedupeStore,
         state: OnlineStateStore,
-        archive: RawEventArchive,
         publisher: CanonicalEventPublisher,
         quality: SourceQualityTracker,
     ) -> None:
-        self._repository = repository
         self._dedupe = dedupe
         self._state = state
-        self._archive = archive
         self._publisher = publisher
         self._quality = quality
 
@@ -223,17 +230,19 @@ class MarketIngestionService:
             return False
         topic = _topic(datum)
         try:
-            persisted = await self._repository.persist(event, datum, topic)
-            if not persisted:
-                return False
-            await self._archive.write("market", event)
             quality = self._quality.observe(
                 source=event.source,
                 asset_id=datum.asset_id,
                 event_time=event.event_time,
                 ingested_at=event.ingested_at,
                 sequence=event.source_sequence,
+                is_orderbook=isinstance(datum, OrderBookUpdate),
             )
+            quality_payload = quality.as_dict()
+            published_event = event.model_copy(
+                update={"payload": {**event.payload, "_quality": quality_payload}}
+            )
+            await self._publisher.publish(topic, published_event)
             latest = {
                 "asset_id": datum.asset_id,
                 "event_type": event.event_type.value,
@@ -241,13 +250,12 @@ class MarketIngestionService:
                 "ingested_at": event.ingested_at,
                 "source": event.source,
                 "data": datum.model_dump(mode="json"),
+                "quality": quality_payload,
             }
             await self._state.set_json(f"latest:market:{datum.asset_id}", latest)
             await self._state.set_json(
-                f"source-health:market:{event.source}:{datum.asset_id}", quality.as_dict()
+                f"source-health:market:{event.source}:{datum.asset_id}", quality_payload
             )
-            await self._publisher.publish(topic, event)
-            await self._repository.mark_published(event.event_id)
             return True
         except Exception:
             await self._dedupe.release(dedupe_key)

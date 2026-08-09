@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 
-from scam2market.features.schemas import FeatureSignal, SignalKind
+from scam2market.features.schemas import FeatureSignal, SignalKind, SourceDomain
 from scam2market.schemas.domain import (
     AssetMention,
     MarketCandle,
@@ -32,13 +32,18 @@ def market_signal(
         }
     else:
         kind = SignalKind.orderbook
+        quality = event.payload.get("_quality", {})
+        book_valid = bool(quality.get("book_valid", True))
         bid_depth = datum.top_bid_depth or sum(quantity for _, quantity in datum.bids[:5])
         ask_depth = datum.top_ask_depth or sum(quantity for _, quantity in datum.asks[:5])
         total_depth = bid_depth + ask_depth
         values = {
-            "spread": datum.spread,
-            "top_n_depth": total_depth or None,
-            "imbalance": (bid_depth - ask_depth) / total_depth if total_depth else None,
+            "spread": datum.spread if book_valid else None,
+            "top_n_depth": (total_depth or None) if book_valid else None,
+            "imbalance": ((bid_depth - ask_depth) / total_depth if total_depth else None)
+            if book_valid
+            else None,
+            "book_valid": book_valid,
         }
     return FeatureSignal(
         event_id=event.event_id,
@@ -47,6 +52,7 @@ def market_signal(
         event_time=datum.event_time,
         ingested_at=event.ingested_at,
         kind=kind,
+        source_domain=SourceDomain.market,
         values=values,
     )
 
@@ -67,6 +73,7 @@ def social_signals(
                 event_time=post.event_time,
                 ingested_at=event.ingested_at,
                 kind=SignalKind.social_post,
+                source_domain=SourceDomain.social,
                 values={
                     "author_id": post.author_id,
                     "hashtags": post.hashtags,
@@ -88,6 +95,7 @@ def social_signals(
                     event_time=post.event_time,
                     ingested_at=event.ingested_at,
                     kind=SignalKind.asset_mention,
+                    source_domain=SourceDomain.social,
                     values={
                         "confidence": mention.confidence,
                         "resolver_version": mention.resolver_version,

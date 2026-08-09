@@ -2,10 +2,7 @@ import asyncio
 
 from scam2market.common.logging import configure_logging, get_logger
 from scam2market.config.settings import get_settings
-from scam2market.db.session import AsyncSessionLocal
-from scam2market.ingestion.archive import ParquetRawEventArchive
 from scam2market.ingestion.quality import SourceQualityTracker
-from scam2market.ingestion.repositories import SqlSocialRepository
 from scam2market.ingestion.social import (
     AssetMentionResolver,
     AssetRegistry,
@@ -33,13 +30,14 @@ async def run() -> None:
         quote_asset="USDT",
     )
     service = SocialIngestionService(
-        repository=SqlSocialRepository(AsyncSessionLocal),
         dedupe=state,
         state=state,
-        archive=ParquetRawEventArchive(settings.raw_archive_path),
         publisher=publisher,
         quality=SourceQualityTracker(settings.social_freshness_threshold_seconds),
-        pseudonymizer=AuthorPseudonymizer(settings.author_pseudonymization_key),
+        pseudonymizer=AuthorPseudonymizer(
+            settings.author_pseudonymization_key,
+            key_version=settings.author_pseudonymization_key_version,
+        ),
         resolver=AssetMentionResolver(AssetRegistry([demo_asset])),
     )
     await publisher.start()

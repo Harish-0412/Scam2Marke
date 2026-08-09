@@ -18,7 +18,7 @@ class OutboxRepository(Protocol):
 
     async def mark_published(self, outbox_id: UUID) -> None: ...
 
-    async def mark_failed(self, outbox_id: UUID) -> None: ...
+    async def mark_failed(self, outbox_id: UUID, error: str | None = None) -> None: ...
 
 
 class OutboxDispatcher:
@@ -36,8 +36,8 @@ class OutboxDispatcher:
         for message in await self._repository.pending(limit):
             try:
                 await self._publisher.publish(message.topic, message.event)
-            except Exception:
-                await self._repository.mark_failed(message.outbox_id)
+            except Exception as error:
+                await self._repository.mark_failed(message.outbox_id, repr(error))
                 continue
             await self._repository.mark_published(message.outbox_id)
             published += 1

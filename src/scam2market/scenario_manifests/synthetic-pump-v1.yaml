@@ -1,0 +1,20 @@
+scenario_id: synthetic-pump-v1
+scenario_version: 1
+seed: 4182
+asset_id: S2MUSDT
+timeline:
+  baseline_start: 2026-01-01T11:55:00Z
+  social_campaign_start: 2026-01-01T12:00:00Z
+  social_acceleration: 2026-01-01T12:01:00Z
+  expected_volume_anomaly: 2026-01-01T12:02:30Z
+  expected_price_anomaly: 2026-01-01T12:02:45Z
+  pump_peak: 2026-01-01T12:03:00Z
+  sell_pressure_start: 2026-01-01T12:03:15Z
+  dump_start: 2026-01-01T12:03:30Z
+expectations:
+  watch_before: 2026-01-01T12:02:30Z
+  high_before: 2026-01-01T12:03:15Z
+  critical_requires_market_corroboration: true
+expected_event_counts:
+  market: 26
+  social: 6

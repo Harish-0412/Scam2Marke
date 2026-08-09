@@ -1,6 +1,5 @@
 from datetime import UTC, datetime, timedelta
 
-from scam2market.ingestion.archive import InMemoryRawEventArchive
 from scam2market.ingestion.market import (
     MarketIngestionService,
     MarketProviderItem,
@@ -8,7 +7,6 @@ from scam2market.ingestion.market import (
     SyntheticProvider,
 )
 from scam2market.ingestion.quality import SourceQualityTracker
-from scam2market.ingestion.repositories import InMemoryMarketRepository
 from scam2market.schemas.domain import MarketTrade
 from scam2market.state import InMemoryStateStore
 from scam2market.streaming.publisher import InMemoryEventPublisher
@@ -28,33 +26,31 @@ def _trade(trade_id: str, event_time: datetime) -> MarketTrade:
 
 def _service() -> tuple[
     MarketIngestionService,
-    InMemoryMarketRepository,
+    InMemoryEventPublisher,
     InMemoryStateStore,
     SourceQualityTracker,
 ]:
-    repository = InMemoryMarketRepository()
+    publisher = InMemoryEventPublisher()
     state = InMemoryStateStore()
     quality = SourceQualityTracker(freshness_threshold_seconds=30)
     service = MarketIngestionService(
-        repository=repository,
         dedupe=state,
         state=state,
-        archive=InMemoryRawEventArchive(),
-        publisher=InMemoryEventPublisher(),
+        publisher=publisher,
         quality=quality,
     )
-    return service, repository, state, quality
+    return service, publisher, state, quality
 
 
 async def test_duplicate_trade_does_not_double_count() -> None:
     event_time = datetime(2026, 1, 1, 12, tzinfo=UTC)
     provider = ReplayProvider([_trade("trade-1", event_time)], clock=lambda: event_time)
     event = [item async for item in provider.stream()][0]
-    service, repository, _, _ = _service()
+    service, publisher, _, _ = _service()
 
     assert await service.ingest(event) is True
     assert await service.ingest(event) is False
-    assert len(repository.events) == 1
+    assert len(publisher.events) == 1
 
 
 async def test_replay_is_deterministic_and_event_time_ordered_per_asset() -> None:
@@ -63,11 +59,19 @@ async def test_replay_is_deterministic_and_event_time_ordered_per_asset() -> Non
     first = [event async for event in provider.stream("replay-1")]
     second = [event async for event in provider.stream("replay-1")]
 
-    assert len(first) == len(second) == 21
+    assert len(first) == len(second) == 26
     assert [event.event_id for event in first] == [event.event_id for event in second]
     assert [event.source_event_id for event in first] == [event.source_event_id for event in second]
     times = [event.event_time for event in first if event.asset_id == "S2MUSDT"]
     assert times == sorted(times)
+
+    other_session = [event async for event in provider.stream("replay-2")]
+    assert [event.origin_event_id for event in first] == [
+        event.origin_event_id for event in other_session
+    ]
+    assert [event.delivery_event_id for event in first] != [
+        event.delivery_event_id for event in other_session
+    ]
 
 
 async def test_source_gap_creates_degraded_quality_state() -> None:
@@ -94,12 +98,12 @@ async def test_delayed_event_keeps_provider_event_time() -> None:
     ingested_at = event_time + timedelta(minutes=10)
     provider = ReplayProvider([_trade("late-trade", event_time)], clock=lambda: ingested_at)
     event = [item async for item in provider.stream()][0]
-    service, repository, _, _ = _service()
+    service, publisher, _, _ = _service()
 
     await service.ingest(event)
 
-    stored = repository.events[event.dedupe_key()]
-    assert stored.event_time == event_time
+    _, published = publisher.events[0]
+    assert published.event_time == event_time
     assert event.ingested_at == ingested_at
 
 

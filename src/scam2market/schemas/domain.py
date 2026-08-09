@@ -91,6 +91,7 @@ class SocialPost(BaseModel):
     post_id: str
     platform: str
     author_id: str
+    pseudonym_key_version: int = Field(default=1, ge=1)
     event_time: datetime
     text: str
     language: str | None = None
@@ -114,6 +115,7 @@ class AssetMention(BaseModel):
     resolver_version: str
     resolution_status: str = "RESOLVED"
     candidate_asset_ids: list[str] = Field(default_factory=list)
+    resolution_reason: str = "LEGACY_UNSPECIFIED"
 
 
 class Disclosure(BaseModel):

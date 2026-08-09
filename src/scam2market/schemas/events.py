@@ -16,6 +16,7 @@ class EventType(StrEnum):
     disclosure_received = "disclosure.received"
     feature_window_updated = "feature.window_updated"
     feature_window_finalized = "feature.window_finalized"
+    feature_window_corrected = "feature.window_corrected"
     model_fusion_scored = "model.fusion_scored"
     campaign_created = "campaign.created"
     campaign_stage_changed = "campaign.stage_changed"
@@ -41,6 +42,8 @@ class TraceMetadata(BaseModel):
 
 class CanonicalEvent(BaseModel):
     event_id: str = Field(default_factory=lambda: str(uuid4()))
+    origin_event_id: str | None = None
+    delivery_event_id: str | None = None
     event_type: EventType
     schema_version: int = Field(ge=1)
     source: str
@@ -54,6 +57,16 @@ class CanonicalEvent(BaseModel):
     replay: ReplayMetadata = Field(default_factory=ReplayMetadata)
     trace: TraceMetadata = Field(default_factory=TraceMetadata)
     payload: dict[str, Any]
+
+    @model_validator(mode="after")
+    def materialize_event_identity(self) -> Self:
+        if self.origin_event_id is None:
+            self.origin_event_id = f"{self.source}:{self.source_event_id}"
+        if self.delivery_event_id is None:
+            self.delivery_event_id = self.event_id
+        if self.delivery_event_id != self.event_id:
+            raise ValueError("event_id must match delivery_event_id")
+        return self
 
     @field_validator("partition_key")
     @classmethod
@@ -70,6 +83,6 @@ class CanonicalEvent(BaseModel):
         return value
 
     def dedupe_key(self) -> str:
-        if self.replay.is_replay and self.replay.replay_session_id:
-            return f"replay:{self.replay.replay_session_id}:{self.source_event_id}"
-        return f"{self.source}:{self.source_event_id}"
+        if self.delivery_event_id is None:
+            raise ValueError("delivery_event_id was not initialized")
+        return self.delivery_event_id

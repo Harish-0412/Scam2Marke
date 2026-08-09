@@ -4,6 +4,7 @@ from uuid import UUID as PyUUID
 from uuid import uuid4
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     DateTime,
     Float,
@@ -72,6 +73,8 @@ class EventIngestionLogModel(Base):
     __table_args__ = (UniqueConstraint("dedupe_key", name="uq_event_ingestion_dedupe_key"),)
 
     event_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    origin_event_id: Mapped[str] = mapped_column(String(512), nullable=False, index=True)
+    delivery_event_id: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
     dedupe_key: Mapped[str] = mapped_column(String(512), nullable=False)
     event_type: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     schema_version: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -138,16 +141,29 @@ class EventOutboxModel(Base):
     outbox_id: Mapped[PyUUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid4, server_default=func.gen_random_uuid()
     )
-    event_id: Mapped[str] = mapped_column(
-        ForeignKey("event_ingestion_log.event_id", ondelete="CASCADE"), nullable=False, index=True
-    )
+    event_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     topic: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     partition_key: Mapped[str] = mapped_column(String(128), nullable=False)
     envelope_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="PENDING", index=True)
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error: Mapped[str | None] = mapped_column(Text)
+
+
+class WorkerCheckpointModel(Base):
+    __tablename__ = "worker_checkpoints"
+
+    consumer_group: Mapped[str] = mapped_column(String(128), primary_key=True)
+    topic: Mapped[str] = mapped_column(String(128), primary_key=True)
+    partition: Mapped[int] = mapped_column(Integer, primary_key=True)
+    last_durable_offset: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    feature_state_version: Mapped[str | None] = mapped_column(String(128))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
 
 class MarketTradeModel(Base):
@@ -198,6 +214,8 @@ class OrderBookSnapshotModel(Base):
     best_ask: Mapped[float | None] = mapped_column(Float)
     bids_json: Mapped[list[list[float]]] = mapped_column(JSONB, default=list)
     asks_json: Mapped[list[list[float]]] = mapped_column(JSONB, default=list)
+    orderbook_state: Mapped[str] = mapped_column(String(32), nullable=False, default="VALID")
+    book_valid: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     ingested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     replay_session_id: Mapped[str | None] = mapped_column(String(128), index=True)
 
@@ -213,6 +231,7 @@ class OrderBookFeatureModel(Base):
     spread: Mapped[float | None] = mapped_column(Float)
     top_n_depth: Mapped[float | None] = mapped_column(Float)
     imbalance: Mapped[float | None] = mapped_column(Float)
+    book_valid: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
 
 class SocialPostModel(Base):
@@ -232,6 +251,7 @@ class SocialPostModel(Base):
     source_post_id: Mapped[str] = mapped_column(String(255), nullable=False)
     platform: Mapped[str] = mapped_column(String(64), nullable=False)
     pseudonymous_author_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    pseudonym_key_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     event_time: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, index=True
     )
@@ -274,6 +294,7 @@ class PostAssetMentionModel(Base):
     resolver_version: Mapped[str] = mapped_column(String(64), nullable=False)
     resolution_status: Mapped[str] = mapped_column(String(32), nullable=False)
     candidate_asset_ids_json: Mapped[list[str]] = mapped_column(JSONB, default=list)
+    resolution_reason: Mapped[str] = mapped_column(String(128), nullable=False)
 
 
 class AssetAliasModel(Base):
@@ -318,7 +339,9 @@ class FeatureWindowModel(TimestampMixin, Base):
     interval_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
     current_revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     is_final: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    revision_state: Mapped[str] = mapped_column(String(32), nullable=False, default="PROVISIONAL")
     feature_schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    feature_schema_hash: Mapped[str] = mapped_column(String(64), nullable=False)
 
 
 class FeatureLineageModel(Base):
@@ -345,6 +368,9 @@ class FeatureRevisionModel(Base):
         ForeignKey("feature_lineage.lineage_id"), nullable=False
     )
     is_final: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    revision_state: Mapped[str] = mapped_column(String(32), nullable=False)
+    supersedes_revision: Mapped[int | None] = mapped_column(Integer)
+    feature_schema_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     features_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -386,10 +412,18 @@ class ModelScoreModel(Base):
     temporal_score: Mapped[float | None] = mapped_column(Float)
     claim_risk: Mapped[float | None] = mapped_column(Float)
     legitimate_event_score: Mapped[float | None] = mapped_column(Float)
+    market_anomaly_risk: Mapped[float | None] = mapped_column(Float)
+    market_anomaly_severity: Mapped[str] = mapped_column(String(32), nullable=False)
+    social_coordination_risk: Mapped[float | None] = mapped_column(Float)
+    social_coordination_severity: Mapped[str] = mapped_column(String(32), nullable=False)
+    raw_cross_domain_risk: Mapped[float] = mapped_column(Float, nullable=False)
+    context_adjusted_risk: Mapped[float] = mapped_column(Float, nullable=False)
     fusion_score: Mapped[float] = mapped_column(Float, nullable=False)
     confidence: Mapped[float] = mapped_column(Float, nullable=False)
     severity: Mapped[str] = mapped_column(String(32), nullable=False)
-    missing_outputs_json: Mapped[list[str]] = mapped_column(JSONB, default=list)
+    missing_outputs_json: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
+    market_regime_confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    liquidity_confidence: Mapped[float] = mapped_column(Float, nullable=False)
     scored_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
 
 

@@ -12,6 +12,7 @@ from scam2market.intelligence.detectors import (
     LiquidityClassifier,
     MarketAnomalyDetector,
     MarketRegimeEngine,
+    MissingReason,
     SocialSurgeDetector,
     TemporalLeadLagDetector,
 )
@@ -35,11 +36,16 @@ class ThresholdConfig(BaseModel):
 
 
 class FusionWeights(BaseModel):
-    market_score: float = 0.35
-    social_score: float = 0.20
-    coordination_score: float = 0.15
-    temporal_score: float = 0.15
+    market_score: float = 0.45
+    social_score: float = 0.10
+    coordination_score: float = 0.20
+    temporal_score: float = 0.10
     claim_risk: float = 0.15
+
+
+class MissingOutput(BaseModel):
+    name: str
+    reason: MissingReason
 
 
 class FusionResult(BaseModel):
@@ -54,13 +60,21 @@ class FusionResult(BaseModel):
     temporal_score: float | None
     claim_risk: float | None
     legitimate_event_score: float | None
+    market_anomaly_risk: float | None = Field(default=None, ge=0, le=1)
+    market_anomaly_severity: RiskLevel
+    social_coordination_risk: float | None = Field(default=None, ge=0, le=1)
+    social_coordination_severity: RiskLevel
+    raw_cross_domain_risk: float = Field(ge=0, le=1)
+    context_adjusted_risk: float = Field(ge=0, le=1)
     fusion_score: float = Field(ge=0, le=1)
     confidence: float = Field(ge=0, le=1)
     severity: RiskLevel
-    missing_outputs: list[str]
+    missing_outputs: list[MissingOutput]
     is_calibrated: bool
     market_regime: str
+    market_regime_confidence: float = Field(ge=0, le=1)
     liquidity_class: str
+    liquidity_confidence: float = Field(ge=0, le=1)
     scored_at: datetime
 
 
@@ -73,7 +87,7 @@ class ScoreCalibrator(Protocol):
 
 
 class FusionEngine:
-    version = "fusion-v1"
+    version = "fusion-v2"
 
     def __init__(
         self,
@@ -94,9 +108,12 @@ class FusionEngine:
         claim_risk: float | None = None,
         legitimate_event_score: float | None = None,
         market_regime: str,
+        market_regime_confidence: float,
         liquidity_class: str,
+        liquidity_confidence: float,
     ) -> FusionResult:
-        detector_values = {output.name: output.score for output in outputs}
+        detector_outputs = {output.name: output for output in outputs}
+        detector_values = {name: output.score for name, output in detector_outputs.items()}
         detector_values["claim_risk"] = claim_risk
         weighted_sum = 0.0
         available_weight = 0.0
@@ -105,9 +122,7 @@ class FusionEngine:
             if value is not None:
                 weighted_sum += float(weight) * float(value)
                 available_weight += float(weight)
-        score = weighted_sum / available_weight if available_weight else 0.0
-        if legitimate_event_score is not None:
-            score *= 1.0 - 0.75 * max(0.0, min(1.0, legitimate_event_score))
+        raw_score = weighted_sum / available_weight if available_weight else 0.0
         market_score = detector_values.get("market_score")
         corroborating_scores = [
             detector_values.get("social_score"),
@@ -116,26 +131,32 @@ class FusionEngine:
             claim_risk,
         ]
         corroborated = any(value is not None and value >= 0.55 for value in corroborating_scores)
-        if market_score is None or market_score < 0.35:
-            score = min(score, self._thresholds.high - 0.01)
-
         missing = [
-            name
+            MissingOutput(
+                name=name,
+                reason=(
+                    detector_outputs[name].missing_reason or MissingReason.no_observations
+                    if name in detector_outputs
+                    else MissingReason.not_provided
+                ),
+            )
             for name in (
                 "market_score",
                 "social_score",
                 "coordination_score",
                 "temporal_score",
-                "claim_risk",
-                "legitimate_event_score",
             )
-            if (
-                legitimate_event_score
-                if name == "legitimate_event_score"
-                else detector_values.get(name)
-            )
-            is None
+            if detector_values.get(name) is None
         ]
+        if claim_risk is None:
+            missing.append(MissingOutput(name="claim_risk", reason=MissingReason.not_provided))
+        if legitimate_event_score is None:
+            missing.append(
+                MissingOutput(
+                    name="legitimate_event_score",
+                    reason=MissingReason.not_provided,
+                )
+            )
         availability = 1.0 - len(missing) / 6.0
         baseline_confidence = float(snapshot.features["baseline_confidence"] or 0.0)
         data_quality = float(snapshot.features["data_quality_score"] or 0.0)
@@ -143,21 +164,45 @@ class FusionEngine:
             0.0,
             min(1.0, availability * (0.4 + 0.35 * baseline_confidence + 0.25 * data_quality)),
         )
-        score = max(0.0, min(1.0, score))
+        raw_score = max(0.0, min(1.0, raw_score))
         is_calibrated = self._calibrator is not None and baseline_confidence >= 0.5
         if is_calibrated and self._calibrator is not None:
-            score = max(
+            raw_score = max(
                 0.0,
                 min(
                     1.0,
                     self._calibrator.calibrate(
-                        score,
+                        raw_score,
                         market_regime=market_regime,
                         liquidity_class=liquidity_class,
                     ),
                 ),
             )
-        severity = self._severity(score)
+        legitimate_adjustment = 1.0 - 0.35 * max(0.0, min(1.0, legitimate_event_score or 0.0))
+        adjusted_score = raw_score * legitimate_adjustment
+        if (
+            market_score is not None
+            and market_score >= 0.65
+            and detector_values.get("coordination_score") is not None
+            and float(detector_values["coordination_score"] or 0.0) >= 0.65
+        ):
+            adjusted_score = max(adjusted_score, self._thresholds.watch)
+        if market_score is None or market_score < 0.35:
+            adjusted_score = min(adjusted_score, self._thresholds.high - 0.01)
+
+        social_values = [
+            (detector_values.get("social_score"), 0.30),
+            (detector_values.get("coordination_score"), 0.70),
+        ]
+        social_weight = sum(weight for value, weight in social_values if value is not None)
+        social_coordination_risk = (
+            sum(float(value) * weight for value, weight in social_values if value is not None)
+            / social_weight
+            if social_weight
+            else None
+        )
+        market_anomaly_risk = float(market_score) if market_score is not None else None
+        severity = self._severity(adjusted_score)
         if severity == RiskLevel.critical and not (
             market_score is not None and market_score >= 0.65 and corroborated and confidence >= 0.4
         ):
@@ -176,13 +221,21 @@ class FusionEngine:
             temporal_score=detector_values.get("temporal_score"),
             claim_risk=claim_risk,
             legitimate_event_score=legitimate_event_score,
-            fusion_score=score,
+            market_anomaly_risk=market_anomaly_risk,
+            market_anomaly_severity=self._severity(market_anomaly_risk or 0.0),
+            social_coordination_risk=social_coordination_risk,
+            social_coordination_severity=self._severity(social_coordination_risk or 0.0),
+            raw_cross_domain_risk=raw_score,
+            context_adjusted_risk=adjusted_score,
+            fusion_score=adjusted_score,
             confidence=confidence,
             severity=severity,
             missing_outputs=missing,
             is_calibrated=is_calibrated,
             market_regime=market_regime,
+            market_regime_confidence=market_regime_confidence,
             liquidity_class=liquidity_class,
+            liquidity_confidence=liquidity_confidence,
             scored_at=datetime.now(tz=UTC),
         )
 
@@ -229,15 +282,17 @@ class DetectionService:
             self._coordination.score(snapshot),
             self._temporal.score(snapshot),
         ]
-        regime, _ = self._regime.classify(snapshot)
-        liquidity, _ = self._liquidity.classify(snapshot)
+        regime, regime_confidence = self._regime.classify(snapshot)
+        liquidity, liquidity_confidence = self._liquidity.classify(snapshot)
         result = self._fusion.fuse(
             snapshot,
             outputs,
             claim_risk=claim_risk,
             legitimate_event_score=legitimate_event_score,
             market_regime=regime.value,
+            market_regime_confidence=regime_confidence,
             liquidity_class=liquidity.value,
+            liquidity_confidence=liquidity_confidence,
         )
         persisted = await self._repository.persist(result)
         await self._state.set_json(

@@ -1,8 +1,15 @@
 from datetime import UTC, datetime, timedelta
 from uuid import NAMESPACE_URL, uuid5
 
-from scam2market.features.schemas import FEATURE_NAMES, FeatureLineage, FeatureSnapshot
+from scam2market.features.schemas import (
+    FEATURE_NAMES,
+    FEATURE_SCHEMA,
+    FeatureLineage,
+    FeatureSnapshot,
+    RevisionState,
+)
 from scam2market.intelligence.detectors import (
+    CoordinationHeuristicDetector,
     MarketAnomalyDetector,
     SocialSurgeDetector,
 )
@@ -40,7 +47,8 @@ def _snapshot(**overrides: float | int | None) -> FeatureSnapshot:
         interval_seconds=60,
         revision=1,
         is_final=True,
-        feature_schema_version="surveillance-features-v1",
+        revision_state=RevisionState.final,
+        feature_schema_version=FEATURE_SCHEMA.feature_schema,
         features=defaults,
         lineage=FeatureLineage(
             lineage_id=uuid5(NAMESPACE_URL, "fusion-test-lineage"),
@@ -96,7 +104,8 @@ async def test_social_hype_alone_cannot_create_critical_alert() -> None:
 
     assert result.market_score is None
     assert result.severity in {RiskLevel.normal, RiskLevel.watch}
-    assert "market_score" in result.missing_outputs
+    assert result.social_coordination_severity == RiskLevel.critical
+    assert "market_score" in {item.name for item in result.missing_outputs}
 
 
 async def test_degraded_data_quality_reduces_confidence() -> None:
@@ -146,7 +155,9 @@ def test_legitimate_event_evidence_reduces_fusion_score() -> None:
         outputs,
         claim_risk=0.8,
         market_regime="DISLOCATED",
+        market_regime_confidence=0.9,
         liquidity_class="LOW",
+        liquidity_confidence=0.8,
     )
     explained = fusion.fuse(
         snapshot,
@@ -154,7 +165,40 @@ def test_legitimate_event_evidence_reduces_fusion_score() -> None:
         claim_risk=0.8,
         legitimate_event_score=1.0,
         market_regime="DISLOCATED",
+        market_regime_confidence=0.9,
         liquidity_class="LOW",
+        liquidity_confidence=0.8,
     )
 
     assert explained.fusion_score < unexplained.fusion_score
+
+
+def test_legitimate_event_adjustment_cannot_erase_corroborated_risk() -> None:
+    snapshot = _snapshot(
+        price_return=0.4,
+        relative_volume=9,
+        volatility=0.15,
+        trade_count=50,
+        mention_count=30,
+        unique_author_count=3,
+        author_concentration=1.0,
+        repost_reply_ratio=1.0,
+        url_concentration=1.0,
+    )
+    outputs = [
+        MarketAnomalyDetector().score(snapshot),
+        CoordinationHeuristicDetector().score(snapshot),
+    ]
+
+    result = FusionEngine().fuse(
+        snapshot,
+        outputs,
+        legitimate_event_score=1.0,
+        market_regime="DISLOCATED",
+        market_regime_confidence=0.9,
+        liquidity_class="LOW",
+        liquidity_confidence=0.8,
+    )
+
+    assert result.context_adjusted_risk >= 0.35
+    assert result.raw_cross_domain_risk >= result.context_adjusted_risk

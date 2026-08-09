@@ -2,6 +2,7 @@ import asyncio
 import hashlib
 import hmac
 import re
+import unicodedata
 from collections.abc import AsyncIterator, Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -11,7 +12,6 @@ from uuid import NAMESPACE_URL, uuid5
 from pydantic import BaseModel, Field
 
 from scam2market.common.time import utc_now
-from scam2market.ingestion.archive import RawEventArchive
 from scam2market.ingestion.quality import SourceQualityTracker
 from scam2market.schemas.domain import Asset, AssetMention, SocialPost
 from scam2market.schemas.events import CanonicalEvent, EventType, ReplayMetadata, TraceMetadata
@@ -42,18 +42,6 @@ class SocialProvider(Protocol):
     def stream(self, replay_session_id: str | None = None) -> AsyncIterator[CanonicalEvent]: ...
 
 
-class SocialRepository(Protocol):
-    async def persist(
-        self,
-        raw_event: CanonicalEvent,
-        post: SocialPost,
-        mentions: Sequence[AssetMention],
-        published_events: Sequence[tuple[str, CanonicalEvent]],
-    ) -> bool: ...
-
-    async def mark_published(self, event_id: str) -> None: ...
-
-
 class SocialReplayProvider:
     def __init__(
         self,
@@ -82,6 +70,10 @@ class SocialReplayProvider:
                 event_id=str(
                     uuid5(NAMESPACE_URL, f"{self.source}:{session_id}:{post.source_post_id}")
                 ),
+                origin_event_id=f"{self.source}:{post.source_post_id}",
+                delivery_event_id=str(
+                    uuid5(NAMESPACE_URL, f"{self.source}:{session_id}:{post.source_post_id}")
+                ),
                 event_type=EventType.social_post_received,
                 schema_version=1,
                 source=self.source,
@@ -108,21 +100,21 @@ class SyntheticSocialProvider(SocialReplayProvider):
     ) -> None:
         start = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
         texts = [
-            "$S2M is starting to move. Watch the volume.",
-            "Big announcement soon for #S2M https://example.test/claim",
-            "$S2M breakout incoming",
-            "Everyone is talking about $S2M",
-            "Repost: $S2M target 2x",
-            "$S2M volume just exploded",
+            "$S2M is starting to move. Watch the volume. https://promo.example/s2m",
+            "Big announcement soon for #S2M https://promo.example/s2m",
+            "$S2M breakout incoming https://promo.example/s2m",
+            "Everyone is talking about $S2M https://promo.example/s2m",
+            "Repost: $S2M target 2x https://promo.example/s2m",
+            "$S2M volume just exploded https://promo.example/s2m",
         ]
         records = [
             RawSocialPost(
                 source_post_id=f"synthetic-post-{index:03d}",
                 platform="synthetic",
-                raw_author_id=f"actor-{index % 3}",
-                event_time=start + timedelta(seconds=index * 20),
+                raw_author_id=f"actor-{index % 2}",
+                event_time=start + timedelta(seconds=index * 30),
                 text=text,
-                repost_of="synthetic-post-000" if index == 4 else None,
+                repost_of="synthetic-post-000" if index > 0 else None,
             )
             for index, text in enumerate(texts)
         ]
@@ -130,10 +122,11 @@ class SyntheticSocialProvider(SocialReplayProvider):
 
 
 class AuthorPseudonymizer:
-    def __init__(self, secret: str) -> None:
+    def __init__(self, secret: str, *, key_version: int = 1) -> None:
         if len(secret) < 16:
             raise ValueError("pseudonymization secret must contain at least 16 characters")
         self._secret = secret.encode("utf-8")
+        self.key_version = key_version
 
     def pseudonymize(self, platform: str, raw_author_id: str) -> str:
         digest = hmac.new(
@@ -159,6 +152,9 @@ class AssetRegistry:
             symbol = asset.symbol.upper()
             candidate = AliasCandidate(asset.asset_id, symbol, symbol in ambiguous)
             self._aliases.setdefault(symbol, []).append(candidate)
+            normalized_name = unicodedata.normalize("NFKC", asset.name).strip().upper()
+            if normalized_name and normalized_name != symbol:
+                self._aliases.setdefault(normalized_name, []).append(candidate)
 
     def candidates(self, alias: str) -> list[AliasCandidate]:
         return list(self._aliases.get(alias.upper(), []))
@@ -179,37 +175,60 @@ class AssetMentionResolver:
         self.version = version
 
     def resolve(self, post_id: str, text: str) -> list[AssetMention]:
+        normalized_text = unicodedata.normalize("NFKC", text)
         matches: dict[tuple[int, int], tuple[str, str]] = {}
         for kind, pattern in (("CASHTAG", CASHTAG_RE), ("HASHTAG", HASHTAG_RE)):
-            for match in pattern.finditer(text):
+            for match in pattern.finditer(normalized_text):
                 matches[(match.start(), match.end())] = (match.group(1), kind)
         for alias in sorted(self._registry.aliases, key=len, reverse=True):
             pattern = re.compile(rf"(?<![\w$#]){re.escape(alias)}(?!\w)", re.IGNORECASE)
-            for match in pattern.finditer(text):
+            for match in pattern.finditer(normalized_text):
                 matches.setdefault((match.start(), match.end()), (match.group(0), "BARE"))
 
         resolved: list[AssetMention] = []
         for (start, end), (alias, kind) in sorted(matches.items()):
             candidates = self._registry.candidates(alias)
-            if not candidates:
-                continue
             candidate_ids = [candidate.asset_id for candidate in candidates]
+            context_start = max(0, start - 24)
+            context_end = min(len(normalized_text), end + 24)
+            context = normalized_text[context_start:context_end].upper()
+            has_market_context = any(
+                token in context for token in (" STOCK", " TOKEN", " COIN", " CRYPTO", " SHARES")
+            )
             ambiguous = len(candidates) > 1 or any(
                 candidate.is_ambiguous for candidate in candidates
             )
             explicit = kind == "CASHTAG"
-            if ambiguous and not explicit:
+            if not candidates:
+                asset_id = None
+                status = "UNRESOLVED"
+                confidence = 0.0
+                reason = "ALIAS_NOT_IN_REGISTRY"
+            elif ambiguous and not explicit and not (has_market_context and len(candidates) == 1):
                 asset_id = None
                 status = "AMBIGUOUS"
                 confidence = 0.4 if kind == "BARE" else 0.6
+                reason = "AMBIGUOUS_ALIAS_WITHOUT_MARKET_CONTEXT"
             elif len(candidates) > 1:
                 asset_id = None
                 status = "AMBIGUOUS"
                 confidence = 0.7
+                reason = "MULTIPLE_EXACT_CANDIDATES"
             else:
                 asset_id = candidates[0].asset_id
                 status = "RESOLVED"
-                confidence = {"CASHTAG": 0.98, "HASHTAG": 0.82, "BARE": 0.62}[kind]
+                confidence = (
+                    0.88
+                    if has_market_context and kind == "BARE"
+                    else {"CASHTAG": 0.98, "HASHTAG": 0.82, "BARE": 0.62}[kind]
+                )
+                reason = (
+                    "EXACT_CASHTAG"
+                    if kind == "CASHTAG"
+                    else "MARKET_CONTEXT_ALIAS"
+                    if has_market_context
+                    else "UNIQUE_REGISTRY_ALIAS"
+                )
             resolved.append(
                 AssetMention(
                     post_id=post_id,
@@ -221,6 +240,7 @@ class AssetMentionResolver:
                     resolver_version=self.version,
                     resolution_status=status,
                     candidate_asset_ids=candidate_ids,
+                    resolution_reason=reason,
                 )
             )
         return resolved
@@ -233,17 +253,19 @@ def parse_social_post(
     pseudonymizer: AuthorPseudonymizer,
     scope_id: str = "LIVE",
 ) -> SocialPost:
+    normalized_text = unicodedata.normalize("NFKC", raw.text)
     return SocialPost(
         post_id=str(uuid5(NAMESPACE_URL, f"social-post:{scope_id}:{source}:{raw.source_post_id}")),
         platform=raw.platform,
         author_id=pseudonymizer.pseudonymize(raw.platform, raw.raw_author_id),
+        pseudonym_key_version=pseudonymizer.key_version,
         event_time=raw.event_time,
-        text=raw.text,
+        text=normalized_text,
         language=raw.language,
-        hashtags=[match.group(1).upper() for match in HASHTAG_RE.finditer(raw.text)],
-        cashtags=[match.group(1).upper() for match in CASHTAG_RE.finditer(raw.text)],
-        user_mentions=[match.group(1) for match in USER_MENTION_RE.finditer(raw.text)],
-        urls=[match.group(0).rstrip(".,;:!?") for match in URL_RE.finditer(raw.text)],
+        hashtags=[match.group(1).upper() for match in HASHTAG_RE.finditer(normalized_text)],
+        cashtags=[match.group(1).upper() for match in CASHTAG_RE.finditer(normalized_text)],
+        user_mentions=[match.group(1) for match in USER_MENTION_RE.finditer(normalized_text)],
+        urls=[match.group(0).rstrip(".,;:!?") for match in URL_RE.finditer(normalized_text)],
         reply_to=raw.reply_to,
         repost_of=raw.repost_of,
         engagement=raw.engagement,
@@ -255,19 +277,15 @@ class SocialIngestionService:
     def __init__(
         self,
         *,
-        repository: SocialRepository,
         dedupe: DedupeStore,
         state: OnlineStateStore,
-        archive: RawEventArchive,
         publisher: CanonicalEventPublisher,
         quality: SourceQualityTracker,
         pseudonymizer: AuthorPseudonymizer,
         resolver: AssetMentionResolver,
     ) -> None:
-        self._repository = repository
         self._dedupe = dedupe
         self._state = state
-        self._archive = archive
         self._publisher = publisher
         self._quality = quality
         self._pseudonymizer = pseudonymizer
@@ -289,6 +307,7 @@ class SocialIngestionService:
         mentions = self._resolver.resolve(post.post_id, post.text)
         sanitized_payload = raw.model_dump(mode="json", exclude={"raw_author_id"})
         sanitized_payload["pseudonymous_author_id"] = post.author_id
+        sanitized_payload["pseudonym_key_version"] = post.pseudonym_key_version
         safe_raw_event = event.model_copy(update={"payload": sanitized_payload})
         normalized_event = CanonicalEvent(
             event_id=str(uuid5(NAMESPACE_URL, f"{event.event_id}:normalized")),
@@ -296,6 +315,8 @@ class SocialIngestionService:
             schema_version=1,
             source=event.source,
             source_event_id=f"{event.source_event_id}:normalized",
+            origin_event_id=f"{event.origin_event_id}:normalized",
+            delivery_event_id=str(uuid5(NAMESPACE_URL, f"{event.event_id}:normalized")),
             source_sequence=event.source_sequence,
             event_time=event.event_time,
             ingested_at=event.ingested_at,
@@ -313,6 +334,8 @@ class SocialIngestionService:
             schema_version=1,
             source=event.source,
             source_event_id=f"{event.source_event_id}:mentions",
+            origin_event_id=f"{event.origin_event_id}:mentions",
+            delivery_event_id=str(uuid5(NAMESPACE_URL, f"{event.event_id}:mentions")),
             source_sequence=event.source_sequence,
             asset_id=next((mention.asset_id for mention in mentions if mention.asset_id), None),
             event_time=event.event_time,
@@ -331,12 +354,7 @@ class SocialIngestionService:
             ("social.mentions.v1", mention_event),
         )
         try:
-            persisted = await self._repository.persist(
-                safe_raw_event, post, mentions, published_events
-            )
-            if not persisted:
-                return False
-            await self._archive.write("social", safe_raw_event)
+            await self._publisher.publish_batch(published_events)
             quality = self._quality.observe(
                 source=event.source,
                 asset_id=post.platform,
@@ -354,9 +372,6 @@ class SocialIngestionService:
             await self._state.set_json(
                 f"source-health:social:{event.source}:{post.platform}", quality.as_dict()
             )
-            for topic, published_event in published_events:
-                await self._publisher.publish(topic, published_event)
-                await self._repository.mark_published(published_event.event_id)
             return True
         except Exception:
             await self._dedupe.release(dedupe_key)

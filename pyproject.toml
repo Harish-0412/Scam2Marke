@@ -17,6 +17,7 @@ dependencies = [
   "orjson>=3.10.7",
   "python-json-logger>=2.0.7",
   "pyarrow>=17.0.0",
+  "PyYAML>=6.0.2",
 ]
 
 [project.scripts]
@@ -26,6 +27,8 @@ scam2market-feature-worker = "scam2market.workers.stream_worker:main"
 scam2market-intelligence-worker = "scam2market.workers.intelligence_worker:main"
 scam2market-outbox-worker = "scam2market.workers.outbox_worker:main"
 scam2market-replay = "scam2market.workers.replay_scheduler:main"
+scam2market-telemetry-persistence = "scam2market.workers.telemetry_persistence_worker:main"
+scam2market-archive-worker = "scam2market.workers.archive_worker:main"
 
 [project.optional-dependencies]
 dev = [
@@ -34,6 +37,7 @@ dev = [
   "pytest-asyncio>=0.23.8",
   "ruff>=0.5.6",
   "mypy>=1.11.0",
+  "types-PyYAML>=6.0.12.20250516",
 ]
 
 [build-system]
@@ -70,4 +74,8 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "pyarrow.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "yaml"
 ignore_missing_imports = true

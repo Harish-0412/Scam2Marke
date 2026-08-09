@@ -1,4 +1,4 @@
-from typing import Any, Literal
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from redis.exceptions import RedisError
@@ -55,6 +55,8 @@ async def asset_mentions(
                 PostAssetMentionModel.confidence,
                 PostAssetMentionModel.resolver_version,
                 PostAssetMentionModel.resolution_status,
+                PostAssetMentionModel.resolution_reason,
+                PostAssetMentionModel.candidate_asset_ids_json,
                 SocialPostModel.event_time,
             )
             .join(SocialPostModel, SocialPostModel.post_id == PostAssetMentionModel.post_id)
@@ -74,9 +76,11 @@ async def social_source_health(source: str, platform: str) -> dict[str, Any]:
 @router.get("/features/assets/{asset_id}/latest")
 async def latest_features(
     asset_id: str,
-    interval_seconds: Literal[60, 300] = 60,
+    interval_seconds: int = Query(default=60, gt=0),
     scope_id: str | None = None,
 ) -> dict[str, Any]:
+    if interval_seconds not in get_settings().feature_window_intervals_seconds:
+        raise HTTPException(status_code=422, detail="unsupported feature window interval")
     if scope_id is not None:
         return await _read_state(f"latest:features:{scope_id}:{asset_id}:{interval_seconds}")
     return await _read_state(f"latest:features:{asset_id}:{interval_seconds}")

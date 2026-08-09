@@ -36,6 +36,8 @@ class ParquetRawEventArchive:
             return
         row = {
             "event_id": [event.event_id],
+            "origin_event_id": [event.origin_event_id],
+            "delivery_event_id": [event.delivery_event_id],
             "event_type": [event.event_type.value],
             "asset_id": [event.asset_id],
             "event_time": [event.event_time],

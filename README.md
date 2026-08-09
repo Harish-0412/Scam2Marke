@@ -8,9 +8,10 @@ The original architecture review supplied for this project is preserved as the f
 document:
 
 1. [Advanced Implementation Review And Corrected Architecture](docs/planning/Scam2Market_Backend_Advanced_Implementation_Review.md)
-2. [Backend Phase Distribution](docs/planning/BACKEND_PHASE_DISTRIBUTION.md)
-3. [Initial Backend Implementation Plan](docs/planning/BACKEND_IMPLEMENTATION_PLAN.md)
-4. [Phases 2-5 Implementation Notes](docs/implementation/phases-2-5.md)
+2. [Complete Project Blueprint](docs/planning/Scam2Market_Project_Blueprint.md)
+3. [Backend Phase Distribution](docs/planning/BACKEND_PHASE_DISTRIBUTION.md)
+4. [Initial Backend Implementation Plan](docs/planning/BACKEND_IMPLEMENTATION_PLAN.md)
+5. [Phases 2-5 Implementation Notes](docs/implementation/phases-2-5.md)
 
 ## Current Phase
 
@@ -19,11 +20,12 @@ Phases 0 through 5 are implemented:
 - deterministic synthetic and replay market providers;
 - normalized trade, candle, and top-five order book ingestion;
 - privacy-preserving social replay, parsing, and versioned asset resolution;
-- TimescaleDB persistence, Redis online state, immutable Parquet archives, and an outbox;
-- event-time 1-minute and 5-minute feature windows with watermarks and revisions;
+- Redpanda-first telemetry with independent TimescaleDB and Parquet consumers;
+- an outbox reserved for database-originated domain events;
+- event-time 1-minute and 5-minute windows with source watermarks and corrected revisions;
 - feature lineage, exact model-input schemas, and low-history confidence;
 - baseline market, social, coordination, and temporal detectors;
-- market regime, liquidity classification, conservative fusion, and missing-output handling;
+- separate market, social-coordination, and cross-domain risks with coded missing outputs;
 - FastAPI health, latest-state, feature, and score endpoints;
 - requirement-level tests for ingestion, replay, windowing, privacy, and fusion behavior.
 
@@ -41,6 +43,7 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m ruff check src tests scripts alembic
 .\.venv\Scripts\python.exe -m mypy src tests
 .\.venv\Scripts\alembic.exe upgrade head --sql
+.\.venv\Scripts\alembic.exe upgrade head
 ```
 
 ## Run With Docker

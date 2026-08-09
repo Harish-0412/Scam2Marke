@@ -31,7 +31,10 @@ async def run() -> None:
             group_id="baseline-intelligence-worker-v1",
         ) as consumer:
             async for event in consumer.events():
-                if event.event_type == EventType.feature_window_finalized:
+                if event.event_type in {
+                    EventType.feature_window_finalized,
+                    EventType.feature_window_corrected,
+                }:
                     await service.score(FeatureSnapshot.model_validate(event.payload))
                 await consumer.commit()
     finally:

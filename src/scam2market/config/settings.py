@@ -29,9 +29,12 @@ class Settings(BaseSettings):
     ]
     raw_archive_path: str = "./data/raw"
     author_pseudonymization_key: str = "development-only-change-me"
+    author_pseudonymization_key_version: int = Field(default=1, ge=1)
     market_freshness_threshold_seconds: int = Field(default=30, gt=0)
     social_freshness_threshold_seconds: int = Field(default=300, gt=0)
     feature_allowed_lateness_seconds: int = Field(default=120, ge=0)
+    feature_window_intervals_seconds: Annotated[list[int], NoDecode] = [60, 300]
+    feature_source_idle_after_seconds: int = Field(default=300, gt=0)
 
     @field_validator("allowed_origins", mode="before")
     @classmethod
@@ -39,6 +42,13 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             return [origin.strip() for origin in value.split(",") if origin.strip()]
         return cast(list[str], value)
+
+    @field_validator("feature_window_intervals_seconds", mode="before")
+    @classmethod
+    def parse_feature_intervals(cls, value: Any) -> list[int]:
+        if isinstance(value, str):
+            return [int(item.strip()) for item in value.split(",") if item.strip()]
+        return cast(list[int], value)
 
     model_config = SettingsConfigDict(
         env_file=".env",

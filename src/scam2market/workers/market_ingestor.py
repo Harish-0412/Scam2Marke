@@ -2,11 +2,8 @@ import asyncio
 
 from scam2market.common.logging import configure_logging, get_logger
 from scam2market.config.settings import get_settings
-from scam2market.db.session import AsyncSessionLocal
-from scam2market.ingestion.archive import ParquetRawEventArchive
 from scam2market.ingestion.market import MarketIngestionService, SyntheticProvider
 from scam2market.ingestion.quality import SourceQualityTracker
-from scam2market.ingestion.repositories import SqlMarketRepository
 from scam2market.state import RedisStateStore
 from scam2market.streaming.publisher import EventPublisher
 
@@ -19,10 +16,8 @@ async def run() -> None:
     state = RedisStateStore(settings.redis_url)
     publisher = EventPublisher()
     service = MarketIngestionService(
-        repository=SqlMarketRepository(AsyncSessionLocal),
         dedupe=state,
         state=state,
-        archive=ParquetRawEventArchive(settings.raw_archive_path),
         publisher=publisher,
         quality=SourceQualityTracker(settings.market_freshness_threshold_seconds),
     )

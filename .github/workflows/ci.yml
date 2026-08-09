@@ -14,6 +14,22 @@ concurrency:
 jobs:
   quality:
     runs-on: ubuntu-24.04
+    services:
+      timescaledb:
+        image: timescale/timescaledb:latest-pg16
+        env:
+          POSTGRES_DB: scam2market
+          POSTGRES_USER: scam2market
+          POSTGRES_PASSWORD: scam2market
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U scam2market -d scam2market"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql+asyncpg://scam2market:scam2market@localhost:5432/scam2market
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -41,8 +57,11 @@ jobs:
       - name: Test
         run: python -m pytest
 
-      - name: Validate migration generation
-        run: python -m alembic upgrade head --sql > /dev/null
+      - name: Apply and reverse database migrations
+        run: |
+          python -m alembic upgrade head
+          python -m alembic downgrade -1
+          python -m alembic upgrade head
 
   container:
     runs-on: ubuntu-24.04

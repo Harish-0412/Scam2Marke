@@ -1,10 +1,19 @@
 from collections.abc import AsyncIterator, Sequence
+from dataclasses import dataclass
 
 import orjson
-from aiokafka import AIOKafkaConsumer
+from aiokafka import AIOKafkaConsumer, TopicPartition
 
 from scam2market.config.settings import get_settings
 from scam2market.schemas.events import CanonicalEvent
+
+
+@dataclass(frozen=True, slots=True)
+class ConsumedEvent:
+    event: CanonicalEvent
+    topic: str
+    partition: int
+    offset: int
 
 
 class EventConsumer:
@@ -33,8 +42,21 @@ class EventConsumer:
         await self._consumer.stop()
 
     async def events(self) -> AsyncIterator[CanonicalEvent]:
-        async for message in self._consumer:
-            yield CanonicalEvent.model_validate(message.value)
+        async for record in self.records():
+            yield record.event
 
-    async def commit(self) -> None:
-        await self._consumer.commit()
+    async def records(self) -> AsyncIterator[ConsumedEvent]:
+        async for message in self._consumer:
+            yield ConsumedEvent(
+                event=CanonicalEvent.model_validate(message.value),
+                topic=message.topic,
+                partition=message.partition,
+                offset=message.offset,
+            )
+
+    async def commit(self, record: ConsumedEvent | None = None) -> None:
+        if record is None:
+            await self._consumer.commit()
+            return
+        partition = TopicPartition(record.topic, record.partition)
+        await self._consumer.commit({partition: record.offset + 1})

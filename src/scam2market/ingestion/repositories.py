@@ -1,5 +1,5 @@
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -23,6 +23,7 @@ from scam2market.db.models import (
     OrderBookSnapshotModel,
     PostAssetMentionModel,
     SocialPostModel,
+    WorkerCheckpointModel,
 )
 from scam2market.features.schemas import FeatureSnapshot
 from scam2market.ingestion.market import MarketDatum
@@ -45,6 +46,8 @@ def _is_unique_violation(error: IntegrityError) -> bool:
 def _ingestion_log(event: CanonicalEvent) -> EventIngestionLogModel:
     return EventIngestionLogModel(
         event_id=event.event_id,
+        origin_event_id=str(event.origin_event_id),
+        delivery_event_id=str(event.delivery_event_id),
         dedupe_key=event.dedupe_key(),
         event_type=event.event_type.value,
         schema_version=event.schema_version,
@@ -64,27 +67,15 @@ def _ingestion_log(event: CanonicalEvent) -> EventIngestionLogModel:
     )
 
 
-def _outbox(event: CanonicalEvent, topic: str) -> EventOutboxModel:
-    return EventOutboxModel(
-        event_id=event.event_id,
-        topic=topic,
-        partition_key=event.partition_key,
-        envelope_json=event.model_dump(mode="json"),
-        status="PENDING",
-        attempts=0,
-    )
-
-
 class SqlMarketRepository:
     def __init__(self, sessions: async_sessionmaker[AsyncSession]) -> None:
         self._sessions = sessions
 
-    async def persist(self, event: CanonicalEvent, datum: MarketDatum, topic: str) -> bool:
+    async def persist(self, event: CanonicalEvent, datum: MarketDatum) -> bool:
         async with self._sessions() as session:
             try:
                 async with session.begin():
                     session.add(_ingestion_log(event))
-                    session.add(_outbox(event, topic))
                     session.add(self._market_row(event, datum))
                     if isinstance(datum, OrderBookUpdate):
                         session.add(self._orderbook_feature(event, datum))
@@ -94,14 +85,6 @@ class SqlMarketRepository:
                     return False
                 raise
         return True
-
-    async def mark_published(self, event_id: str) -> None:
-        async with self._sessions.begin() as session:
-            await session.execute(
-                update(EventOutboxModel)
-                .where(EventOutboxModel.event_id == event_id)
-                .values(status="PUBLISHED", published_at=datetime.now().astimezone())
-            )
 
     @staticmethod
     def _market_row(
@@ -140,6 +123,8 @@ class SqlMarketRepository:
                 ingested_at=event.ingested_at,
                 replay_session_id=replay_session_id,
             )
+        quality = event.payload.get("_quality", {})
+        book_valid = bool(quality.get("book_valid", True))
         return OrderBookSnapshotModel(
             scope_id=scope_id,
             event_time=datum.event_time,
@@ -151,12 +136,16 @@ class SqlMarketRepository:
             best_ask=datum.best_ask,
             bids_json=[[price, quantity] for price, quantity in datum.bids],
             asks_json=[[price, quantity] for price, quantity in datum.asks],
+            orderbook_state=str(quality.get("orderbook_state", "VALID")),
+            book_valid=book_valid,
             ingested_at=event.ingested_at,
             replay_session_id=replay_session_id,
         )
 
     @staticmethod
     def _orderbook_feature(event: CanonicalEvent, datum: OrderBookUpdate) -> OrderBookFeatureModel:
+        quality = event.payload.get("_quality", {})
+        book_valid = bool(quality.get("book_valid", True))
         bid_depth = datum.top_bid_depth or 0.0
         ask_depth = datum.top_ask_depth or 0.0
         total_depth = bid_depth + ask_depth
@@ -167,9 +156,10 @@ class SqlMarketRepository:
             source=event.source,
             snapshot_id=datum.update_id,
             asset_id=datum.asset_id,
-            spread=datum.spread,
-            top_n_depth=total_depth or None,
-            imbalance=imbalance,
+            spread=datum.spread if book_valid else None,
+            top_n_depth=(total_depth or None) if book_valid else None,
+            imbalance=imbalance if book_valid else None,
+            book_valid=book_valid,
         )
 
 
@@ -178,44 +168,57 @@ class InMemoryMarketRepository:
         self.events: dict[str, MarketDatum] = {}
         self.published: set[str] = set()
 
-    async def persist(self, event: CanonicalEvent, datum: MarketDatum, topic: str) -> bool:
-        del topic
+    async def persist(self, event: CanonicalEvent, datum: MarketDatum) -> bool:
         key = event.dedupe_key()
         if key in self.events:
             return False
         self.events[key] = datum
         return True
 
-    async def mark_published(self, event_id: str) -> None:
-        self.published.add(event_id)
-
 
 class SqlSocialRepository:
     def __init__(self, sessions: async_sessionmaker[AsyncSession]) -> None:
         self._sessions = sessions
 
-    async def persist(
-        self,
-        raw_event: CanonicalEvent,
-        post: SocialPost,
-        mentions: Sequence[AssetMention],
-        published_events: Sequence[tuple[str, CanonicalEvent]],
-    ) -> bool:
+    async def persist_raw(self, event: CanonicalEvent) -> bool:
         async with self._sessions() as session:
             try:
                 async with session.begin():
-                    for topic, published_event in published_events:
-                        session.add(_ingestion_log(published_event))
-                        session.add(_outbox(published_event, topic))
+                    session.add(_ingestion_log(event))
+            except IntegrityError as error:
+                await session.rollback()
+                if _is_unique_violation(error):
+                    return False
+                raise
+        return True
+
+    async def persist_pair(
+        self, normalized_event: CanonicalEvent, mention_event: CanonicalEvent
+    ) -> bool:
+        post = SocialPost.model_validate(normalized_event.payload)
+        raw_mentions = mention_event.payload.get("mentions", [])
+        if not isinstance(raw_mentions, list):
+            raise TypeError("social mention event payload must contain a list")
+        mentions = [AssetMention.model_validate(item) for item in raw_mentions]
+        async with self._sessions() as session:
+            try:
+                async with session.begin():
+                    session.add(_ingestion_log(normalized_event))
+                    session.add(_ingestion_log(mention_event))
                     post_row = SocialPostModel(
                         post_id=post.post_id,
-                        scope_id=raw_event.replay.replay_session_id or "LIVE",
-                        source=raw_event.source,
-                        source_post_id=raw_event.source_event_id,
+                        scope_id=normalized_event.replay.replay_session_id or "LIVE",
+                        source=normalized_event.source,
+                        source_post_id=str(
+                            post.source_metadata.get(
+                                "source_post_id", normalized_event.source_event_id
+                            )
+                        ),
                         platform=post.platform,
                         pseudonymous_author_id=post.author_id,
+                        pseudonym_key_version=post.pseudonym_key_version,
                         event_time=post.event_time,
-                        ingested_at=raw_event.ingested_at,
+                        ingested_at=normalized_event.ingested_at,
                         text=post.text,
                         language=post.language,
                         hashtags_json=post.hashtags,
@@ -225,7 +228,7 @@ class SqlSocialRepository:
                         reply_to=post.reply_to,
                         repost_of=post.repost_of,
                         engagement_json=post.engagement,
-                        replay_session_id=raw_event.replay.replay_session_id,
+                        replay_session_id=normalized_event.replay.replay_session_id,
                     )
                     session.add(post_row)
                     await session.flush()
@@ -241,6 +244,7 @@ class SqlSocialRepository:
                                 resolver_version=mention.resolver_version,
                                 resolution_status=mention.resolution_status,
                                 candidate_asset_ids_json=mention.candidate_asset_ids,
+                                resolution_reason=mention.resolution_reason,
                             )
                             for mention in mentions
                         ]
@@ -252,14 +256,6 @@ class SqlSocialRepository:
                 raise
         return True
 
-    async def mark_published(self, event_id: str) -> None:
-        async with self._sessions.begin() as session:
-            await session.execute(
-                update(EventOutboxModel)
-                .where(EventOutboxModel.event_id == event_id)
-                .values(status="PUBLISHED", published_at=datetime.now().astimezone())
-            )
-
 
 class InMemorySocialRepository:
     def __init__(self) -> None:
@@ -267,23 +263,33 @@ class InMemorySocialRepository:
         self.mentions: list[AssetMention] = []
         self.published: set[str] = set()
 
-    async def persist(
-        self,
-        raw_event: CanonicalEvent,
-        post: SocialPost,
-        mentions: Sequence[AssetMention],
-        published_events: Sequence[tuple[str, CanonicalEvent]],
-    ) -> bool:
-        del published_events
-        key = raw_event.dedupe_key()
+    async def persist_raw(self, event: CanonicalEvent) -> bool:
+        key = event.dedupe_key()
         if key in self.posts:
             return False
-        self.posts[key] = post
-        self.mentions.extend(mentions)
+        self.posts[key] = SocialPost.model_construct(
+            post_id=event.event_id,
+            platform="raw",
+            author_id="raw",
+            event_time=event.event_time,
+            text="",
+        )
         return True
 
-    async def mark_published(self, event_id: str) -> None:
-        self.published.add(event_id)
+    async def persist_pair(
+        self, normalized_event: CanonicalEvent, mention_event: CanonicalEvent
+    ) -> bool:
+        post = SocialPost.model_validate(normalized_event.payload)
+        key = normalized_event.dedupe_key()
+        if key in self.posts:
+            return False
+        raw_mentions = mention_event.payload.get("mentions", [])
+        if not isinstance(raw_mentions, list):
+            raise TypeError("social mention event payload must contain a list")
+        self.posts[key] = post
+        mentions = [AssetMention.model_validate(item) for item in raw_mentions]
+        self.mentions.extend(mentions)
+        return True
 
 
 def serialize_latest_post(post: SocialPost, mentions: Sequence[AssetMention]) -> dict[str, Any]:
@@ -319,7 +325,9 @@ class SqlFeatureRepository:
                             interval_seconds=snapshot.interval_seconds,
                             current_revision=snapshot.revision,
                             is_final=snapshot.is_final,
+                            revision_state=snapshot.revision_state.value,
                             feature_schema_version=snapshot.feature_schema_version,
+                            feature_schema_hash=snapshot.feature_schema_hash,
                         )
                         session.add(window)
                     elif window.current_revision >= snapshot.revision:
@@ -327,7 +335,9 @@ class SqlFeatureRepository:
                     else:
                         window.current_revision = snapshot.revision
                         window.is_final = snapshot.is_final
+                        window.revision_state = snapshot.revision_state.value
                         window.feature_schema_version = snapshot.feature_schema_version
+                        window.feature_schema_hash = snapshot.feature_schema_hash
                     await session.flush()
                     session.add(
                         FeatureLineageModel(
@@ -346,6 +356,9 @@ class SqlFeatureRepository:
                             revision=snapshot.revision,
                             lineage_id=snapshot.lineage.lineage_id,
                             is_final=snapshot.is_final,
+                            revision_state=snapshot.revision_state.value,
+                            supersedes_revision=snapshot.supersedes_revision,
+                            feature_schema_hash=snapshot.feature_schema_hash,
                             features_json=snapshot.features,
                         )
                     )
@@ -407,10 +420,22 @@ class SqlScoreRepository:
                             temporal_score=result.temporal_score,
                             claim_risk=result.claim_risk,
                             legitimate_event_score=result.legitimate_event_score,
+                            market_anomaly_risk=result.market_anomaly_risk,
+                            market_anomaly_severity=result.market_anomaly_severity.value,
+                            social_coordination_risk=result.social_coordination_risk,
+                            social_coordination_severity=(
+                                result.social_coordination_severity.value
+                            ),
+                            raw_cross_domain_risk=result.raw_cross_domain_risk,
+                            context_adjusted_risk=result.context_adjusted_risk,
                             fusion_score=result.fusion_score,
                             confidence=result.confidence,
                             severity=result.severity.value,
-                            missing_outputs_json=result.missing_outputs,
+                            missing_outputs_json=[
+                                item.model_dump(mode="json") for item in result.missing_outputs
+                            ],
+                            market_regime_confidence=result.market_regime_confidence,
+                            liquidity_confidence=result.liquidity_confidence,
                             scored_at=result.scored_at,
                         )
                     )
@@ -419,7 +444,7 @@ class SqlScoreRepository:
                             asset_id=result.asset_id,
                             event_time=result.scored_at,
                             regime=result.market_regime,
-                            confidence=result.confidence,
+                            confidence=result.market_regime_confidence,
                             inputs_json={
                                 "feature_window_id": result.feature_window_id,
                                 "feature_revision": result.feature_revision,
@@ -432,7 +457,7 @@ class SqlScoreRepository:
                             AssetLiquidityClassModel(
                                 asset_id=result.asset_id,
                                 liquidity_class=result.liquidity_class,
-                                confidence=result.confidence,
+                                confidence=result.liquidity_confidence,
                                 metrics_json={
                                     "feature_window_id": result.feature_window_id,
                                     "feature_revision": result.feature_revision,
@@ -441,7 +466,7 @@ class SqlScoreRepository:
                         )
                     else:
                         liquidity.liquidity_class = result.liquidity_class
-                        liquidity.confidence = result.confidence
+                        liquidity.confidence = result.liquidity_confidence
                         liquidity.metrics_json = {
                             "feature_window_id": result.feature_window_id,
                             "feature_revision": result.feature_revision,
@@ -459,18 +484,31 @@ class SqlOutboxRepository:
         self._sessions = sessions
 
     async def pending(self, limit: int = 100) -> list[OutboxMessage]:
-        async with self._sessions() as session:
+        now = datetime.now(tz=UTC)
+        stale_claim = now - timedelta(minutes=5)
+        async with self._sessions() as session, session.begin():
             rows = (
                 await session.scalars(
                     select(EventOutboxModel)
                     .where(
-                        EventOutboxModel.status.in_(("PENDING", "FAILED")),
+                        (
+                            EventOutboxModel.status.in_(("PENDING", "FAILED"))
+                            | (
+                                (EventOutboxModel.status == "PROCESSING")
+                                & (EventOutboxModel.claimed_at < stale_claim)
+                            )
+                        ),
                         EventOutboxModel.attempts < 10,
                     )
                     .order_by(EventOutboxModel.created_at)
                     .limit(limit)
+                    .with_for_update(skip_locked=True)
                 )
             ).all()
+            for row in rows:
+                row.status = "PROCESSING"
+                row.claimed_at = now
+                row.attempts += 1
         return [
             OutboxMessage(
                 outbox_id=row.outbox_id,
@@ -485,13 +523,56 @@ class SqlOutboxRepository:
             await session.execute(
                 update(EventOutboxModel)
                 .where(EventOutboxModel.outbox_id == outbox_id)
-                .values(status="PUBLISHED", published_at=datetime.now().astimezone())
+                .values(
+                    status="PUBLISHED",
+                    published_at=datetime.now(tz=UTC),
+                    last_error=None,
+                )
             )
 
-    async def mark_failed(self, outbox_id: UUID) -> None:
+    async def mark_failed(self, outbox_id: UUID, error: str | None = None) -> None:
         async with self._sessions.begin() as session:
             await session.execute(
                 update(EventOutboxModel)
                 .where(EventOutboxModel.outbox_id == outbox_id)
-                .values(status="FAILED", attempts=EventOutboxModel.attempts + 1)
+                .values(status="FAILED", last_error=(error or "publish failed")[:2000])
             )
+
+
+class SqlWorkerCheckpointRepository:
+    def __init__(self, sessions: async_sessionmaker[AsyncSession]) -> None:
+        self._sessions = sessions
+
+    async def save(
+        self,
+        *,
+        consumer_group: str,
+        topic: str,
+        partition: int,
+        last_durable_offset: int,
+        feature_state_version: str | None = None,
+    ) -> None:
+        async with self._sessions.begin() as session:
+            checkpoint = await session.get(
+                WorkerCheckpointModel,
+                {
+                    "consumer_group": consumer_group,
+                    "topic": topic,
+                    "partition": partition,
+                },
+            )
+            if checkpoint is None:
+                session.add(
+                    WorkerCheckpointModel(
+                        consumer_group=consumer_group,
+                        topic=topic,
+                        partition=partition,
+                        last_durable_offset=last_durable_offset,
+                        feature_state_version=feature_state_version,
+                    )
+                )
+                return
+            checkpoint.last_durable_offset = max(
+                checkpoint.last_durable_offset, last_durable_offset
+            )
+            checkpoint.feature_state_version = feature_state_version
