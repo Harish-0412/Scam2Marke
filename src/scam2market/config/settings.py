@@ -21,6 +21,15 @@ class Settings(BaseSettings):
     neo4j_password: str = "scam2market-password"
 
     qdrant_url: AnyUrl | str = "http://localhost:6333"
+    qdrant_post_collection: str = "social-post-embeddings-v1"
+    qdrant_disclosure_collection: str = "disclosure-chunks-v1"
+    embedding_dimensions: int = Field(default=128, ge=32, le=4096)
+    narrative_similarity_threshold: float = Field(default=0.76, ge=0, le=1)
+    narrative_window_seconds: int = Field(default=300, gt=0)
+    campaign_merge_gap_seconds: int = Field(default=1800, gt=0)
+    alert_suppression_seconds: int = Field(default=300, ge=0)
+    realtime_stream_key: str = "stream:alerts:v1"
+    realtime_stream_max_length: int = Field(default=10_000, ge=100)
     mlflow_tracking_uri: AnyUrl | str = "http://localhost:5000"
 
     allowed_origins: Annotated[list[str], NoDecode] = [

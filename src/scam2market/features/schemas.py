@@ -70,8 +70,10 @@ class FeatureSnapshot(BaseModel):
 
     @model_validator(mode="after")
     def feature_order_matches_schema(self) -> "FeatureSnapshot":
-        if tuple(self.features) != FEATURE_NAMES:
-            raise ValueError("feature names are missing, extra, or reordered")
+        if len(self.features) != len(FEATURE_NAMES) or set(self.features) != set(FEATURE_NAMES):
+            raise ValueError("feature names are missing or extra")
+        # JSON objects and PostgreSQL JSONB do not preserve semantic key order.
+        self.features = {name: self.features[name] for name in FEATURE_NAMES}
         if self.feature_schema_version != FEATURE_SCHEMA.feature_schema:
             raise ValueError("feature schema version does not match the registered manifest")
         if self.feature_schema_hash != FEATURE_SCHEMA.schema_hash:

@@ -9,7 +9,9 @@ from scam2market.features.engine import (
     InMemoryFeatureRepository,
 )
 from scam2market.features.schemas import (
+    FEATURE_NAMES,
     FeatureSignal,
+    FeatureSnapshot,
     ModelInput,
     RevisionState,
     SignalKind,
@@ -140,6 +142,18 @@ def test_model_input_rejects_reordered_features() -> None:
             feature_names=list(reversed(model_input.feature_names)),
             values=model_input.values,
         )
+
+
+def test_feature_snapshot_canonicalizes_json_object_key_order() -> None:
+    snapshot = FeatureWindowEngine(intervals_seconds=(60,)).ingest(
+        _trade_signal("canonical-order", START)
+    )[0]
+    serialized = snapshot.model_dump(mode="json")
+    serialized["features"] = dict(reversed(list(serialized["features"].items())))
+
+    restored = FeatureSnapshot.model_validate(serialized)
+
+    assert tuple(restored.features) == FEATURE_NAMES
 
 
 async def test_latest_redis_state_matches_latest_persisted_snapshot() -> None:

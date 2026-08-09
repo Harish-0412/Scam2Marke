@@ -12,10 +12,11 @@ document:
 3. [Backend Phase Distribution](docs/planning/BACKEND_PHASE_DISTRIBUTION.md)
 4. [Initial Backend Implementation Plan](docs/planning/BACKEND_IMPLEMENTATION_PLAN.md)
 5. [Phases 2-5 Implementation Notes](docs/implementation/phases-2-5.md)
+6. [Phases 6-8 Implementation Notes](docs/implementation/phases-6-8.md)
 
 ## Current Phase
 
-Phases 0 through 5 are implemented:
+Phases 0 through 8 are implemented:
 
 - deterministic synthetic and replay market providers;
 - normalized trade, candle, and top-five order book ingestion;
@@ -28,6 +29,15 @@ Phases 0 through 5 are implemented:
 - separate market, social-coordination, and cross-domain risks with coded missing outputs;
 - FastAPI health, latest-state, feature, and score endpoints;
 - requirement-level tests for ingestion, replay, windowing, privacy, and fusion behavior.
+- persistent campaign state with guarded stage transitions and merge windows;
+- idempotent alert creation, cooldown suppression, histories, and transactional outbox events;
+- replayable Redis Stream delivery through SSE and WebSocket endpoints;
+- deterministic post embeddings and replay-stable narrative clustering;
+- optional Qdrant indexing and Neo4j coordination-graph projection;
+- graph-derived coordination features with degraded-service isolation;
+- official disclosure ingestion and deterministic claim extraction;
+- event-time-bounded claim verification that prevents future-document leakage;
+- fusion enrichment with explicit optional graph, claim-risk, and legitimate-event evidence.
 
 ## Local Setup
 
@@ -59,8 +69,14 @@ services are healthy:
 docker compose --profile demo up replay-scheduler
 ```
 
-The raw replay archive is written to the `raw-data` volume. Neo4j, Qdrant, and MLflow remain
-available through the `intelligence` profile for later phases.
+Run the optional graph and verification services with:
+
+```powershell
+docker compose --profile intelligence up --build
+```
+
+The raw replay archive is written to the `raw-data` volume. Qdrant and Neo4j are isolated behind
+the `intelligence` profile; the baseline detector and campaign engine continue without them.
 
 ## API
 
@@ -74,6 +90,11 @@ available through the `intelligence` profile for later phases.
 - `GET /api/v1/social/sources/{source}/{platform}/health`
 - `GET /api/v1/features/assets/{asset_id}/latest?interval_seconds=60&scope_id={scope}`
 - `GET /api/v1/intelligence/assets/{asset_id}/score?scope_id={scope}`
+- `GET /api/v1/campaigns?asset_id={asset_id}&scope_id={scope}`
+- `GET /api/v1/campaigns/{campaign_id}/evidence`
+- `GET /api/v1/alerts?campaign_id={campaign_id}`
+- `GET /api/v1/stream/alerts` (server-sent events)
+- `WS /api/v1/ws/alerts?after_id={redis_stream_id}`
 
 ## Architecture Docs
 
@@ -83,3 +104,4 @@ available through the `intelligence` profile for later phases.
 - [Scope Reset](docs/architecture/scope-reset.md)
 - [Architecture Decision Records](docs/architecture/decisions)
 - [Phases 2-5 Implementation](docs/implementation/phases-2-5.md)
+- [Phases 6-8 Implementation](docs/implementation/phases-6-8.md)

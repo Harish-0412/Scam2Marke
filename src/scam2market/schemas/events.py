@@ -20,8 +20,15 @@ class EventType(StrEnum):
     model_fusion_scored = "model.fusion_scored"
     campaign_created = "campaign.created"
     campaign_stage_changed = "campaign.stage_changed"
+    campaign_closed = "campaign.closed"
     alert_created = "alert.created"
     alert_severity_changed = "alert.severity_changed"
+    alert_refreshed = "alert.refreshed"
+    alert_resolved = "alert.resolved"
+    narrative_clustered = "narrative.clustered"
+    graph_snapshot_created = "graph.snapshot_created"
+    graph_features_computed = "graph.features_computed"
+    claim_verification_completed = "claim.verification_completed"
 
 
 class ReplayMetadata(BaseModel):

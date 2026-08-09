@@ -135,8 +135,8 @@ class AuditLogModel(Base):
 
 
 class EventOutboxModel(Base):
-    __tablename__ = "event_outbox"
-    __table_args__ = (UniqueConstraint("event_id", "topic", name="uq_event_outbox_event_topic"),)
+    __tablename__ = "outbox_events"
+    __table_args__ = (UniqueConstraint("event_id", "topic", name="uq_outbox_event_topic"),)
 
     outbox_id: Mapped[PyUUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid4, server_default=func.gen_random_uuid()
@@ -412,6 +412,7 @@ class ModelScoreModel(Base):
     temporal_score: Mapped[float | None] = mapped_column(Float)
     claim_risk: Mapped[float | None] = mapped_column(Float)
     legitimate_event_score: Mapped[float | None] = mapped_column(Float)
+    graph_score: Mapped[float | None] = mapped_column(Float)
     market_anomaly_risk: Mapped[float | None] = mapped_column(Float)
     market_anomaly_severity: Mapped[str] = mapped_column(String(32), nullable=False)
     social_coordination_risk: Mapped[float | None] = mapped_column(Float)
@@ -424,6 +425,7 @@ class ModelScoreModel(Base):
     missing_outputs_json: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
     market_regime_confidence: Mapped[float] = mapped_column(Float, nullable=False)
     liquidity_confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    stage_signals_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     scored_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
 
 
@@ -452,3 +454,242 @@ class AssetLiquidityClassModel(TimestampMixin, Base):
     liquidity_class: Mapped[str] = mapped_column(String(32), nullable=False)
     confidence: Mapped[float] = mapped_column(Float, nullable=False)
     metrics_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+
+
+class CampaignModel(TimestampMixin, Base):
+    __tablename__ = "campaigns"
+
+    campaign_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4, server_default=func.gen_random_uuid()
+    )
+    scope_id: Mapped[str] = mapped_column(String(128), nullable=False, default="LIVE", index=True)
+    asset_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    stage: Mapped[str] = mapped_column(String(64), nullable=False, default="NORMAL")
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="ACTIVE", index=True)
+    max_severity: Mapped[str] = mapped_column(String(32), nullable=False, default="NORMAL")
+    first_evidence_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_evidence_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    dominant_narrative_id: Mapped[PyUUID | None] = mapped_column(UUID(as_uuid=True), index=True)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+
+
+class CampaignEvidenceModel(Base):
+    __tablename__ = "campaign_evidence"
+
+    evidence_event_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    campaign_id: Mapped[PyUUID] = mapped_column(
+        ForeignKey("campaigns.campaign_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    event_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    evidence_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    evidence_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    evidence_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class CampaignStageHistoryModel(Base):
+    __tablename__ = "campaign_stage_history"
+    __table_args__ = (
+        UniqueConstraint("campaign_id", "evidence_event_id", name="uq_campaign_stage_evidence"),
+    )
+
+    stage_history_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4, server_default=func.gen_random_uuid()
+    )
+    campaign_id: Mapped[PyUUID] = mapped_column(
+        ForeignKey("campaigns.campaign_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    from_stage: Mapped[str | None] = mapped_column(String(64))
+    to_stage: Mapped[str] = mapped_column(String(64), nullable=False)
+    evidence_event_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    reason: Mapped[str] = mapped_column(String(255), nullable=False)
+    transitioned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class AlertModel(TimestampMixin, Base):
+    __tablename__ = "alerts"
+    __table_args__ = (UniqueConstraint("campaign_id", "alert_type", name="uq_alert_campaign_type"),)
+
+    alert_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4, server_default=func.gen_random_uuid()
+    )
+    campaign_id: Mapped[PyUUID] = mapped_column(
+        ForeignKey("campaigns.campaign_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    alert_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    severity: Mapped[str] = mapped_column(String(32), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="ACTIVE", index=True)
+    first_triggered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_triggered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    occurrence_count: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    evidence_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+
+
+class AlertStateHistoryModel(Base):
+    __tablename__ = "alert_state_history"
+    __table_args__ = (
+        UniqueConstraint("alert_id", "evidence_event_id", name="uq_alert_state_evidence"),
+    )
+
+    alert_history_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4, server_default=func.gen_random_uuid()
+    )
+    alert_id: Mapped[PyUUID] = mapped_column(
+        ForeignKey("alerts.alert_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    evidence_event_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    from_severity: Mapped[str | None] = mapped_column(String(32))
+    to_severity: Mapped[str] = mapped_column(String(32), nullable=False)
+    from_status: Mapped[str | None] = mapped_column(String(32))
+    to_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    suppression_reason: Mapped[str | None] = mapped_column(String(128))
+    changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class NarrativeModel(TimestampMixin, Base):
+    __tablename__ = "narratives"
+    __table_args__ = (
+        UniqueConstraint(
+            "scope_id", "asset_id", "window_start", "cluster_key", name="uq_narrative_cluster"
+        ),
+    )
+
+    narrative_id: Mapped[PyUUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    scope_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    asset_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    window_end: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+    cluster_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    label: Mapped[str] = mapped_column(String(255), nullable=False)
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    post_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    unique_author_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    centroid_json: Mapped[list[float]] = mapped_column(JSONB, nullable=False)
+    embedding_version: Mapped[str] = mapped_column(String(64), nullable=False)
+
+
+class NarrativePostModel(Base):
+    __tablename__ = "narrative_posts"
+
+    narrative_id: Mapped[PyUUID] = mapped_column(
+        ForeignKey("narratives.narrative_id", ondelete="CASCADE"), primary_key=True
+    )
+    post_id: Mapped[str] = mapped_column(
+        ForeignKey("social_posts.post_id", ondelete="CASCADE"), primary_key=True
+    )
+    similarity: Mapped[float] = mapped_column(Float, nullable=False)
+    assigned_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class GraphSnapshotModel(Base):
+    __tablename__ = "graph_snapshots"
+
+    graph_snapshot_id: Mapped[PyUUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    scope_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    asset_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    window_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    projection_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    projection_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    node_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    relationship_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    error_message: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class GraphFeatureModel(Base):
+    __tablename__ = "graph_features"
+
+    graph_snapshot_id: Mapped[PyUUID] = mapped_column(
+        ForeignKey("graph_snapshots.graph_snapshot_id", ondelete="CASCADE"), primary_key=True
+    )
+    feature_window_id: Mapped[PyUUID] = mapped_column(
+        ForeignKey("feature_windows.feature_window_id", ondelete="CASCADE"), nullable=False
+    )
+    feature_revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    graph_score: Mapped[float | None] = mapped_column(Float)
+    features_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    feature_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class DisclosureModel(TimestampMixin, Base):
+    __tablename__ = "disclosures"
+    __table_args__ = (
+        UniqueConstraint("source", "source_document_id", name="uq_disclosure_source_document"),
+    )
+
+    disclosure_id: Mapped[PyUUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    source: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_document_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    asset_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    url: Mapped[str | None] = mapped_column(Text)
+    published_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+    retrieved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    reliability: Mapped[float] = mapped_column(Float, nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+
+
+class DisclosureChunkModel(Base):
+    __tablename__ = "disclosure_chunks"
+
+    chunk_id: Mapped[PyUUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    disclosure_id: Mapped[PyUUID] = mapped_column(
+        ForeignKey("disclosures.disclosure_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    token_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    embedding_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+
+
+class ClaimModel(TimestampMixin, Base):
+    __tablename__ = "claims"
+    __table_args__ = (
+        UniqueConstraint("narrative_id", "claim_hash", name="uq_narrative_claim_hash"),
+    )
+
+    claim_id: Mapped[PyUUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    narrative_id: Mapped[PyUUID] = mapped_column(
+        ForeignKey("narratives.narrative_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    asset_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    claim_text: Mapped[str] = mapped_column(Text, nullable=False)
+    claim_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    extracted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    extractor_version: Mapped[str] = mapped_column(String(64), nullable=False)
+
+
+class ClaimVerificationModel(Base):
+    __tablename__ = "claim_verifications"
+    __table_args__ = (
+        UniqueConstraint(
+            "claim_id", "alert_time", "verifier_version", name="uq_claim_verification_cutoff"
+        ),
+    )
+
+    verification_id: Mapped[PyUUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    claim_id: Mapped[PyUUID] = mapped_column(
+        ForeignKey("claims.claim_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    alert_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    result: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    claim_risk: Mapped[float] = mapped_column(Float, nullable=False)
+    legitimate_event_score: Mapped[float] = mapped_column(Float, nullable=False)
+    evidence_document_ids_json: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    retrieval_metadata_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    deterministic_reason: Mapped[str] = mapped_column(Text, nullable=False)
+    llm_explanation: Mapped[str | None] = mapped_column(Text)
+    verifier_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    verified_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

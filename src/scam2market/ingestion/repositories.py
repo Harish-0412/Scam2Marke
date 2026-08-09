@@ -420,6 +420,7 @@ class SqlScoreRepository:
                             temporal_score=result.temporal_score,
                             claim_risk=result.claim_risk,
                             legitimate_event_score=result.legitimate_event_score,
+                            graph_score=result.graph_score,
                             market_anomaly_risk=result.market_anomaly_risk,
                             market_anomaly_severity=result.market_anomaly_severity.value,
                             social_coordination_risk=result.social_coordination_risk,
@@ -436,6 +437,7 @@ class SqlScoreRepository:
                             ],
                             market_regime_confidence=result.market_regime_confidence,
                             liquidity_confidence=result.liquidity_confidence,
+                            stage_signals_json=result.stage_signals,
                             scored_at=result.scored_at,
                         )
                     )

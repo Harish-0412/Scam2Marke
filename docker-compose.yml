@@ -72,6 +72,70 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  campaign-worker:
+    build: .
+    command: scam2market-campaign-worker
+    env_file:
+      - .env.example
+    volumes:
+      - ./src:/app/src
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      topic-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  realtime-worker:
+    build: .
+    command: scam2market-realtime-worker
+    env_file:
+      - .env.example
+    volumes:
+      - ./src:/app/src
+    depends_on:
+      topic-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  narrative-worker:
+    build: .
+    command: scam2market-narrative-worker
+    profiles: ["intelligence"]
+    env_file:
+      - .env.example
+    volumes:
+      - ./src:/app/src
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      topic-init:
+        condition: service_completed_successfully
+      neo4j:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    restart: unless-stopped
+
+  verification-worker:
+    build: .
+    command: scam2market-verification-worker
+    profiles: ["intelligence"]
+    env_file:
+      - .env.example
+    volumes:
+      - ./src:/app/src
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      topic-init:
+        condition: service_completed_successfully
+      qdrant:
+        condition: service_healthy
+    restart: unless-stopped
+
   outbox-worker:
     build: .
     command: scam2market-outbox-worker
@@ -229,6 +293,11 @@ services:
       - "7687:7687"
     volumes:
       - neo4j-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p scam2market-password 'RETURN 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
 
   qdrant:
     image: qdrant/qdrant:latest
@@ -238,6 +307,11 @@ services:
       - "6334:6334"
     volumes:
       - qdrant-data:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/6333' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
 
   mlflow:
     image: ghcr.io/mlflow/mlflow:latest

@@ -1,6 +1,8 @@
 from datetime import UTC, datetime, timedelta
 from uuid import NAMESPACE_URL, uuid5
 
+import pytest
+
 from scam2market.features.schemas import (
     FEATURE_NAMES,
     FEATURE_SCHEMA,
@@ -202,3 +204,72 @@ def test_legitimate_event_adjustment_cannot_erase_corroborated_risk() -> None:
 
     assert result.context_adjusted_risk >= 0.35
     assert result.raw_cross_domain_risk >= result.context_adjusted_risk
+
+
+def test_graph_score_is_optional_and_strengthens_available_coordination_evidence() -> None:
+    snapshot = _snapshot(
+        price_return=0.15,
+        relative_volume=4,
+        trade_count=20,
+        mention_count=12,
+        unique_author_count=3,
+        author_concentration=0.9,
+    )
+    outputs = [
+        MarketAnomalyDetector().score(snapshot),
+        CoordinationHeuristicDetector().score(snapshot),
+    ]
+    fusion = FusionEngine()
+    baseline = fusion.fuse(
+        snapshot,
+        outputs,
+        market_regime="DISLOCATED",
+        market_regime_confidence=0.8,
+        liquidity_class="LOW",
+        liquidity_confidence=0.8,
+    )
+    enriched = fusion.fuse(
+        snapshot,
+        outputs,
+        graph_score=1.0,
+        market_regime="DISLOCATED",
+        market_regime_confidence=0.8,
+        liquidity_class="LOW",
+        liquidity_confidence=0.8,
+    )
+
+    assert "graph_score" in {item.name for item in baseline.missing_outputs}
+    assert enriched.graph_score == 1.0
+    assert enriched.fusion_score > baseline.fusion_score
+    assert enriched.model_version == "fusion-v2+graph"
+
+
+@pytest.mark.asyncio
+async def test_enrichment_context_produces_stable_distinct_score_identity() -> None:
+    snapshot = _snapshot()
+    repository = InMemoryScoreRepository()
+    service = DetectionService(
+        repository=repository,
+        state=InMemoryStateStore(),
+        publisher=InMemoryEventPublisher(),
+    )
+
+    first = await service.score(
+        snapshot,
+        claim_risk=0.8,
+        enrichment_context_id="narrative-a",
+    )
+    duplicate = await service.score(
+        snapshot,
+        claim_risk=0.8,
+        enrichment_context_id="narrative-a",
+    )
+    second = await service.score(
+        snapshot,
+        claim_risk=0.4,
+        enrichment_context_id="narrative-b",
+    )
+
+    assert first.model_version == duplicate.model_version
+    assert first.model_version != second.model_version
+    assert len(repository.results) == 2

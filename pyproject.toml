@@ -18,6 +18,8 @@ dependencies = [
   "python-json-logger>=2.0.7",
   "pyarrow>=17.0.0",
   "PyYAML>=6.0.2",
+  "qdrant-client>=1.15.0,<2",
+  "neo4j>=6.0.0,<7",
 ]
 
 [project.scripts]
@@ -29,6 +31,10 @@ scam2market-outbox-worker = "scam2market.workers.outbox_worker:main"
 scam2market-replay = "scam2market.workers.replay_scheduler:main"
 scam2market-telemetry-persistence = "scam2market.workers.telemetry_persistence_worker:main"
 scam2market-archive-worker = "scam2market.workers.archive_worker:main"
+scam2market-campaign-worker = "scam2market.workers.campaign_worker:main"
+scam2market-narrative-worker = "scam2market.workers.graph_worker:main"
+scam2market-verification-worker = "scam2market.workers.verification_worker:main"
+scam2market-realtime-worker = "scam2market.workers.realtime_worker:main"
 
 [project.optional-dependencies]
 dev = [
@@ -78,4 +84,12 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "yaml"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "qdrant_client.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "neo4j.*"
 ignore_missing_imports = true

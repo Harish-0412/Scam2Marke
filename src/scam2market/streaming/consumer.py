@@ -31,6 +31,7 @@ class EventConsumer:
             group_id=group_id,
             enable_auto_commit=False,
             auto_offset_reset="earliest",
+            isolation_level="read_committed",
             value_deserializer=orjson.loads,
         )
 

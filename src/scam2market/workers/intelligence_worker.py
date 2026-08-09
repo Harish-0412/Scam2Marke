@@ -27,8 +27,13 @@ async def run() -> None:
     await publisher.start()
     try:
         async with EventConsumer(
-            ("features.market.v1", "features.social.v1"),
-            group_id="baseline-intelligence-worker-v1",
+            (
+                "features.market.v1",
+                "features.social.v1",
+                "graph.features.v1",
+                "claim.verification.v1",
+            ),
+            group_id="baseline-intelligence-worker-v2",
         ) as consumer:
             async for event in consumer.events():
                 if event.event_type in {
@@ -36,6 +41,25 @@ async def run() -> None:
                     EventType.feature_window_corrected,
                 }:
                     await service.score(FeatureSnapshot.model_validate(event.payload))
+                elif event.event_type == EventType.graph_features_computed:
+                    features = event.payload["features"]
+                    if not isinstance(features, dict):
+                        raise TypeError("graph features payload must be an object")
+                    graph_score = features.get("graph_score")
+                    await service.score(
+                        FeatureSnapshot.model_validate(event.payload["feature_snapshot"]),
+                        graph_score=(float(graph_score) if graph_score is not None else None),
+                        enrichment_context_id=str(event.payload["graph_snapshot_id"]),
+                    )
+                elif event.event_type == EventType.claim_verification_completed:
+                    graph_score = event.payload.get("graph_score")
+                    await service.score(
+                        FeatureSnapshot.model_validate(event.payload["feature_snapshot"]),
+                        claim_risk=float(event.payload["claim_risk"]),
+                        legitimate_event_score=float(event.payload["legitimate_event_score"]),
+                        graph_score=(float(graph_score) if graph_score is not None else None),
+                        enrichment_context_id=str(event.payload["narrative_id"]),
+                    )
                 await consumer.commit()
     finally:
         await publisher.stop()

@@ -36,11 +36,12 @@ class ThresholdConfig(BaseModel):
 
 
 class FusionWeights(BaseModel):
-    market_score: float = 0.45
+    market_score: float = 0.40
     social_score: float = 0.10
-    coordination_score: float = 0.20
+    coordination_score: float = 0.18
     temporal_score: float = 0.10
-    claim_risk: float = 0.15
+    claim_risk: float = 0.12
+    graph_score: float = 0.10
 
 
 class MissingOutput(BaseModel):
@@ -60,6 +61,7 @@ class FusionResult(BaseModel):
     temporal_score: float | None
     claim_risk: float | None
     legitimate_event_score: float | None
+    graph_score: float | None
     market_anomaly_risk: float | None = Field(default=None, ge=0, le=1)
     market_anomaly_severity: RiskLevel
     social_coordination_risk: float | None = Field(default=None, ge=0, le=1)
@@ -75,6 +77,7 @@ class FusionResult(BaseModel):
     market_regime_confidence: float = Field(ge=0, le=1)
     liquidity_class: str
     liquidity_confidence: float = Field(ge=0, le=1)
+    stage_signals: dict[str, float | None]
     scored_at: datetime
 
 
@@ -107,6 +110,7 @@ class FusionEngine:
         *,
         claim_risk: float | None = None,
         legitimate_event_score: float | None = None,
+        graph_score: float | None = None,
         market_regime: str,
         market_regime_confidence: float,
         liquidity_class: str,
@@ -115,6 +119,7 @@ class FusionEngine:
         detector_outputs = {output.name: output for output in outputs}
         detector_values = {name: output.score for name, output in detector_outputs.items()}
         detector_values["claim_risk"] = claim_risk
+        detector_values["graph_score"] = graph_score
         weighted_sum = 0.0
         available_weight = 0.0
         for name, weight in self._weights.model_dump().items():
@@ -129,6 +134,7 @@ class FusionEngine:
             detector_values.get("coordination_score"),
             detector_values.get("temporal_score"),
             claim_risk,
+            graph_score,
         ]
         corroborated = any(value is not None and value >= 0.55 for value in corroborating_scores)
         missing = [
@@ -157,7 +163,9 @@ class FusionEngine:
                     reason=MissingReason.not_provided,
                 )
             )
-        availability = 1.0 - len(missing) / 6.0
+        if graph_score is None:
+            missing.append(MissingOutput(name="graph_score", reason=MissingReason.not_provided))
+        availability = 1.0 - len(missing) / 7.0
         baseline_confidence = float(snapshot.features["baseline_confidence"] or 0.0)
         data_quality = float(snapshot.features["data_quality_score"] or 0.0)
         confidence = max(
@@ -209,18 +217,27 @@ class FusionEngine:
             severity = RiskLevel.high
         if market_score is None and severity in {RiskLevel.high, RiskLevel.critical}:
             severity = RiskLevel.watch
+        enrichment_labels: list[str] = []
+        if graph_score is not None:
+            enrichment_labels.append("graph")
+        if claim_risk is not None or legitimate_event_score is not None:
+            enrichment_labels.append("verification")
+        model_version = self.version
+        if enrichment_labels:
+            model_version += "+" + "+".join(enrichment_labels)
         return FusionResult(
             scope_id=snapshot.scope_id,
             asset_id=snapshot.asset_id,
             feature_window_id=str(snapshot.feature_window_id),
             feature_revision=snapshot.revision,
-            model_version=self.version,
+            model_version=model_version,
             market_score=market_score,
             social_score=detector_values.get("social_score"),
             coordination_score=detector_values.get("coordination_score"),
             temporal_score=detector_values.get("temporal_score"),
             claim_risk=claim_risk,
             legitimate_event_score=legitimate_event_score,
+            graph_score=graph_score,
             market_anomaly_risk=market_anomaly_risk,
             market_anomaly_severity=self._severity(market_anomaly_risk or 0.0),
             social_coordination_risk=social_coordination_risk,
@@ -236,6 +253,14 @@ class FusionEngine:
             market_regime_confidence=market_regime_confidence,
             liquidity_class=liquidity_class,
             liquidity_confidence=liquidity_confidence,
+            stage_signals={
+                "price_return": _optional_float(snapshot.features["price_return"]),
+                "relative_volume": _optional_float(snapshot.features["relative_volume"]),
+                "spread": _optional_float(snapshot.features["spread"]),
+                "orderbook_imbalance": _optional_float(snapshot.features["orderbook_imbalance"]),
+                "buy_sell_pressure": _optional_float(snapshot.features["buy_sell_pressure"]),
+                "mention_count": _optional_float(snapshot.features["mention_count"]),
+            },
             scored_at=datetime.now(tz=UTC),
         )
 
@@ -275,6 +300,8 @@ class DetectionService:
         *,
         claim_risk: float | None = None,
         legitimate_event_score: float | None = None,
+        graph_score: float | None = None,
+        enrichment_context_id: str | None = None,
     ) -> FusionResult:
         outputs = [
             self._market.score(snapshot),
@@ -289,11 +316,17 @@ class DetectionService:
             outputs,
             claim_risk=claim_risk,
             legitimate_event_score=legitimate_event_score,
+            graph_score=graph_score,
             market_regime=regime.value,
             market_regime_confidence=regime_confidence,
             liquidity_class=liquidity.value,
             liquidity_confidence=liquidity_confidence,
         )
+        if enrichment_context_id is not None:
+            context_hash = uuid5(NAMESPACE_URL, enrichment_context_id).hex[:12]
+            result = result.model_copy(
+                update={"model_version": f"{result.model_version}:{context_hash}"}
+            )
         persisted = await self._repository.persist(result)
         await self._state.set_json(
             f"latest:score:{snapshot.asset_id}", result.model_dump(mode="json")
@@ -308,15 +341,15 @@ class DetectionService:
                     uuid5(
                         NAMESPACE_URL,
                         f"fusion-event:{snapshot.scope_id}:{snapshot.feature_window_id}:"
-                        f"{snapshot.revision}:{self._fusion.version}",
+                        f"{snapshot.revision}:{result.model_version}",
                     )
                 ),
                 event_type=EventType.model_fusion_scored,
                 schema_version=1,
-                source=self._fusion.version,
+                source=result.model_version,
                 source_event_id=(
                     f"{snapshot.scope_id}:{snapshot.feature_window_id}:"
-                    f"{snapshot.revision}:{self._fusion.version}"
+                    f"{snapshot.revision}:{result.model_version}"
                 ),
                 asset_id=snapshot.asset_id,
                 event_time=snapshot.window_end,
@@ -331,6 +364,10 @@ class DetectionService:
             )
             await self._publisher.publish("model.fusion.score.v1", event)
         return result
+
+
+def _optional_float(value: float | int | None) -> float | None:
+    return float(value) if value is not None else None
 
 
 class InMemoryScoreRepository:
