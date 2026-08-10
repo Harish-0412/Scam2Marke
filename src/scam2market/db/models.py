@@ -769,3 +769,26 @@ class ClaimVerificationModel(Base):
     source_policy_version: Mapped[str] = mapped_column(String(64), nullable=False)
     retrospective_only: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     verified_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+# New models for Phase 9 enhancements
+class ThreatIndicatorModel(TimestampMixin, Base):
+    __tablename__ = "threat_indicators"
+    
+    indicator_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    indicator_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    source: Mapped[str] = mapped_column(String(64), nullable=False)
+    severity: Mapped[str] = mapped_column(String(32), nullable=False)
+    description: Mapped[str] = mapped_column(Text)
+    raw_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    first_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+class ExplainabilityOutputModel(TimestampMixin, Base):
+    __tablename__ = "explainability_outputs"
+    
+    output_id: Mapped[PyUUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4, server_default=func.gen_random_uuid())
+    claim_id: Mapped[PyUUID] = mapped_column(UUID(as_uuid=True), ForeignKey("claims.claim_id"), nullable=False, index=True)
+    model_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    explanation: Mapped[str] = mapped_column(Text, nullable=False)
+    relevance_score: Mapped[float] = mapped_column(Float)
+    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
