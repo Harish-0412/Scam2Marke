@@ -5,7 +5,7 @@ import datetime
 import joblib
 import shap
 import numpy as np
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 app = FastAPI()
 
@@ -22,7 +22,7 @@ if _model is not None:
         _explainer = shap.TreeExplainer(_model)
     except Exception:
         # KernelExplainer requires a background dataset; using zeros as placeholder
-        _explainer = shap.KernelExplainer(_model.predict, np.zeros((1, len(_model.feature_names_in_)))
+        _explainer = shap.KernelExplainer(_model.predict, np.zeros((1, len(_model.feature_names_in_))))
 else:
     _explainer = None
 
