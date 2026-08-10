@@ -23,6 +23,11 @@ class DisclosureDocument(BaseModel):
     url: str | None = None
     published_at: datetime
     retrieved_at: datetime
+    first_observed_at: datetime | None = None
+    ingested_at: datetime | None = None
+    document_version: int = Field(default=1, ge=1)
+    supersedes_disclosure_id: UUID | None = None
+    source_policy_version: str = "official-sources-v1"
     reliability: float = Field(default=1.0, ge=0, le=1)
     content_hash: str
 
@@ -45,6 +50,9 @@ class DisclosureCandidate(BaseModel):
     title: str
     text: str
     published_at: datetime
+    first_observed_at: datetime
+    document_version: int = Field(ge=1)
+    source_policy_version: str
     reliability: float = Field(ge=0, le=1)
 
 
@@ -53,6 +61,8 @@ class Claim(BaseModel):
     narrative_id: UUID
     asset_id: str
     claim_text: str
+    claim_type: str = "OTHER"
+    canonical_payload: dict[str, object] = Field(default_factory=dict)
     claim_hash: str
     extracted_at: datetime
     extractor_version: str
@@ -70,10 +80,13 @@ class ClaimVerification(BaseModel):
     deterministic_reason: str
     llm_explanation: str | None = None
     verifier_version: str
+    source_policy_version: str = "official-sources-v1"
+    retrospective_only: bool = False
     verified_at: datetime
 
 
 class VerificationSummary(BaseModel):
+    verification_snapshot_id: UUID
     narrative_id: UUID
     alert_time: datetime
     result: VerificationResult

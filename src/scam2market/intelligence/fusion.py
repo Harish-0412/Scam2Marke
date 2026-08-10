@@ -1,3 +1,5 @@
+import hashlib
+import json
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Protocol
@@ -28,6 +30,13 @@ class RiskLevel(StrEnum):
     critical = "CRITICAL"
 
 
+class EnrichmentProfile(StrEnum):
+    base = "BASE"
+    graph = "GRAPH"
+    verification = "VERIFICATION"
+    graph_and_verification = "GRAPH_AND_VERIFICATION"
+
+
 class ThresholdConfig(BaseModel):
     version: str = "fusion-thresholds-v1"
     watch: float = Field(default=0.35, ge=0, le=1)
@@ -55,6 +64,13 @@ class FusionResult(BaseModel):
     feature_window_id: str
     feature_revision: int
     model_version: str
+    base_model_version: str = "fusion-v2"
+    fusion_policy_version: str = "fusion-policy-v1"
+    enrichment_profile: EnrichmentProfile = EnrichmentProfile.base
+    fusion_revision: int = Field(default=1, ge=1)
+    evidence_cutoff: datetime | None = None
+    input_snapshot_ids: dict[str, str] = Field(default_factory=dict)
+    idempotency_key: str = ""
     market_score: float | None
     social_score: float | None
     coordination_score: float | None
@@ -91,6 +107,7 @@ class ScoreCalibrator(Protocol):
 
 class FusionEngine:
     version = "fusion-v2"
+    policy_version = "fusion-policy-v1"
 
     def __init__(
         self,
@@ -217,20 +234,31 @@ class FusionEngine:
             severity = RiskLevel.high
         if market_score is None and severity in {RiskLevel.high, RiskLevel.critical}:
             severity = RiskLevel.watch
-        enrichment_labels: list[str] = []
-        if graph_score is not None:
-            enrichment_labels.append("graph")
-        if claim_risk is not None or legitimate_event_score is not None:
-            enrichment_labels.append("verification")
-        model_version = self.version
-        if enrichment_labels:
-            model_version += "+" + "+".join(enrichment_labels)
+        has_graph = graph_score is not None
+        has_verification = claim_risk is not None or legitimate_event_score is not None
+        if has_graph and has_verification:
+            enrichment_profile = EnrichmentProfile.graph_and_verification
+            fusion_revision = 3
+        elif has_graph:
+            enrichment_profile = EnrichmentProfile.graph
+            fusion_revision = 2
+        elif has_verification:
+            enrichment_profile = EnrichmentProfile.verification
+            fusion_revision = 2
+        else:
+            enrichment_profile = EnrichmentProfile.base
+            fusion_revision = 1
         return FusionResult(
             scope_id=snapshot.scope_id,
             asset_id=snapshot.asset_id,
             feature_window_id=str(snapshot.feature_window_id),
             feature_revision=snapshot.revision,
-            model_version=model_version,
+            model_version=self.version,
+            base_model_version=self.version,
+            fusion_policy_version=self.policy_version,
+            enrichment_profile=enrichment_profile,
+            fusion_revision=fusion_revision,
+            evidence_cutoff=snapshot.window_end,
             market_score=market_score,
             social_score=detector_values.get("social_score"),
             coordination_score=detector_values.get("coordination_score"),
@@ -301,7 +329,8 @@ class DetectionService:
         claim_risk: float | None = None,
         legitimate_event_score: float | None = None,
         graph_score: float | None = None,
-        enrichment_context_id: str | None = None,
+        graph_snapshot_id: str | None = None,
+        verification_snapshot_id: str | None = None,
     ) -> FusionResult:
         outputs = [
             self._market.score(snapshot),
@@ -322,11 +351,32 @@ class DetectionService:
             liquidity_class=liquidity.value,
             liquidity_confidence=liquidity_confidence,
         )
-        if enrichment_context_id is not None:
-            context_hash = uuid5(NAMESPACE_URL, enrichment_context_id).hex[:12]
-            result = result.model_copy(
-                update={"model_version": f"{result.model_version}:{context_hash}"}
-            )
+        input_snapshot_ids = {
+            key: value
+            for key, value in {
+                "graph_snapshot_id": graph_snapshot_id,
+                "verification_snapshot_id": verification_snapshot_id,
+            }.items()
+            if value is not None
+        }
+        identity = {
+            "scope_id": snapshot.scope_id,
+            "asset_id": snapshot.asset_id,
+            "feature_window_id": str(snapshot.feature_window_id),
+            "feature_revision": snapshot.revision,
+            "enrichment_profile": result.enrichment_profile.value,
+            "input_snapshot_ids": input_snapshot_ids,
+            "fusion_policy_version": result.fusion_policy_version,
+        }
+        idempotency_key = hashlib.sha256(
+            json.dumps(identity, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        result = result.model_copy(
+            update={
+                "input_snapshot_ids": input_snapshot_ids,
+                "idempotency_key": idempotency_key,
+            }
+        )
         persisted = await self._repository.persist(result)
         await self._state.set_json(
             f"latest:score:{snapshot.asset_id}", result.model_dump(mode="json")
@@ -341,15 +391,15 @@ class DetectionService:
                     uuid5(
                         NAMESPACE_URL,
                         f"fusion-event:{snapshot.scope_id}:{snapshot.feature_window_id}:"
-                        f"{snapshot.revision}:{result.model_version}",
+                        f"{snapshot.revision}:{result.idempotency_key}",
                     )
                 ),
                 event_type=EventType.model_fusion_scored,
                 schema_version=1,
-                source=result.model_version,
+                source=result.base_model_version,
                 source_event_id=(
                     f"{snapshot.scope_id}:{snapshot.feature_window_id}:"
-                    f"{snapshot.revision}:{result.model_version}"
+                    f"{snapshot.revision}:{result.idempotency_key}"
                 ),
                 asset_id=snapshot.asset_id,
                 event_time=snapshot.window_end,
@@ -375,7 +425,7 @@ class InMemoryScoreRepository:
         self.results: dict[tuple[str, int, str], FusionResult] = {}
 
     async def persist(self, result: FusionResult) -> bool:
-        key = (result.feature_window_id, result.feature_revision, result.model_version)
+        key = (result.feature_window_id, result.feature_revision, result.idempotency_key)
         if key in self.results:
             return False
         self.results[key] = result

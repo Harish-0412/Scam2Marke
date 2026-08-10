@@ -22,6 +22,14 @@ class MissingReason(StrEnum):
     not_provided = "NOT_PROVIDED"
     invalid_orderbook = "INVALID_ORDERBOOK"
     insufficient_peer_data = "INSUFFICIENT_PEER_DATA"
+    not_ready = "NOT_READY"
+    qdrant_degraded = "QDRANT_DEGRADED"
+    neo4j_degraded = "NEO4J_DEGRADED"
+    no_narrative = "NO_NARRATIVE"
+    no_claim = "NO_CLAIM"
+    insufficient_graph = "INSUFFICIENT_GRAPH"
+    verification_unknown = "VERIFICATION_UNKNOWN"
+    timeout = "TIMEOUT"
 
 
 @dataclass(frozen=True, slots=True)

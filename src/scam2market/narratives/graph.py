@@ -1,10 +1,22 @@
 import math
 from collections import Counter
+from datetime import datetime
 from typing import Protocol
 
 from neo4j import AsyncDriver, AsyncGraphDatabase
 
 from scam2market.narratives.schemas import GraphFeatures, NarrativeCluster, NarrativePost
+
+_CONSTRAINTS = (
+    ("actor_id_unique", "Actor", "actor_id"),
+    ("post_id_unique", "Post", "post_id"),
+    ("asset_id_unique", "Asset", "asset_id"),
+    ("narrative_id_unique", "Narrative", "narrative_id"),
+    ("campaign_id_unique", "Campaign", "campaign_id"),
+    ("alert_id_unique", "Alert", "alert_id"),
+    ("claim_id_unique", "Claim", "claim_id"),
+    ("disclosure_id_unique", "Disclosure", "disclosure_id"),
+)
 
 
 class CoordinationGraphProjector(Protocol):
@@ -15,6 +27,7 @@ class CoordinationGraphProjector(Protocol):
         posts: list[NarrativePost],
         clusters: list[NarrativeCluster],
         *,
+        cutoff_event_time: datetime,
         campaign_id: str | None = None,
         alert_ids: list[str] | None = None,
     ) -> tuple[int, int]: ...
@@ -24,8 +37,13 @@ class GraphFeatureExtractor:
     version = "coordination-graph-features-v1"
 
     def compute(
-        self, posts: list[NarrativePost], clusters: list[NarrativeCluster]
+        self,
+        posts: list[NarrativePost],
+        clusters: list[NarrativeCluster],
+        *,
+        cutoff_event_time: datetime,
     ) -> GraphFeatures:
+        posts = [post for post in posts if post.event_time <= cutoff_event_time]
         if not posts:
             return GraphFeatures(
                 community_concentration=0,
@@ -83,7 +101,9 @@ class GraphFeatureExtractor:
             propagation_depth=depth,
             community_entropy=normalized_entropy,
             time_to_10_authors_seconds=time_to_10,
+            authors_10_threshold_reached=time_to_10 is not None,
             time_to_100_authors_seconds=time_to_100,
+            authors_100_threshold_reached=time_to_100 is not None,
             cross_community_spread=spread,
             node_similarity=node_similarity,
             graph_score=graph_score,
@@ -96,15 +116,30 @@ class Neo4jCoordinationGraphProjector:
     def __init__(self, uri: str, user: str, password: str, database: str = "neo4j") -> None:
         self._driver: AsyncDriver = AsyncGraphDatabase.driver(uri, auth=(user, password))
         self._database = database
+        self._schema_ready = False
+
+    async def ensure_schema(self) -> None:
+        if self._schema_ready:
+            return
+        for name, label, property_name in _CONSTRAINTS:
+            await self._driver.execute_query(
+                f"CREATE CONSTRAINT {name} IF NOT EXISTS "
+                f"FOR (node:{label}) REQUIRE node.{property_name} IS UNIQUE",
+                database_=self._database,
+            )
+        self._schema_ready = True
 
     async def project(
         self,
         posts: list[NarrativePost],
         clusters: list[NarrativeCluster],
         *,
+        cutoff_event_time: datetime,
         campaign_id: str | None = None,
         alert_ids: list[str] | None = None,
     ) -> tuple[int, int]:
+        await self.ensure_schema()
+        posts = [post for post in posts if post.event_time <= cutoff_event_time]
         cluster_by_post = {
             post_id: str(cluster.narrative_id)
             for cluster in clusters
@@ -117,6 +152,7 @@ class Neo4jCoordinationGraphProjector:
                 "asset_id": post.asset_id,
                 "narrative_id": cluster_by_post[post.post_id],
                 "event_time": post.event_time.isoformat(),
+                "scope_id": post.scope_id,
                 "reply_to": post.reply_to,
                 "repost_of": post.repost_of,
                 "amplifies": bool(post.repost_of or post.urls or post.hashtags),
@@ -127,7 +163,7 @@ class Neo4jCoordinationGraphProjector:
         UNWIND $posts AS item
         MERGE (actor:Actor {actor_id: item.author_id})
         MERGE (post:Post {post_id: item.post_id})
-          SET post.event_time = item.event_time
+          SET post.event_time = item.event_time, post.scope_id = item.scope_id
         MERGE (asset:Asset {asset_id: item.asset_id})
         MERGE (narrative:Narrative {narrative_id: item.narrative_id})
         MERGE (actor)-[:POSTED]->(post)
@@ -148,7 +184,7 @@ class Neo4jCoordinationGraphProjector:
         WITH DISTINCT narrative
         UNWIND $alert_ids AS alert_id
         MERGE (alert:Alert {alert_id: alert_id})
-        MERGE (alert)-[:SUPPORTED_BY]->(narrative)
+        MERGE (narrative)-[:EVIDENCE_FOR]->(alert)
         """
         await self._driver.execute_query(
             query,
@@ -194,11 +230,13 @@ class InMemoryCoordinationGraphProjector:
         posts: list[NarrativePost],
         clusters: list[NarrativeCluster],
         *,
+        cutoff_event_time: datetime,
         campaign_id: str | None = None,
         alert_ids: list[str] | None = None,
     ) -> tuple[int, int]:
         if self.fail:
             raise RuntimeError("graph projection unavailable")
+        posts = [post for post in posts if post.event_time <= cutoff_event_time]
         cluster_by_post = {
             post_id: str(cluster.narrative_id)
             for cluster in clusters
@@ -228,7 +266,7 @@ class InMemoryCoordinationGraphProjector:
         for alert_id in alert_ids or []:
             self.nodes["Alert"].add(alert_id)
             for cluster in clusters:
-                self.relationships.add((alert_id, "SUPPORTED_BY", str(cluster.narrative_id)))
+                self.relationships.add((str(cluster.narrative_id), "EVIDENCE_FOR", alert_id))
         return sum(map(len, self.nodes.values())), len(self.relationships)
 
 

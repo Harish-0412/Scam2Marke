@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     narrative_window_seconds: int = Field(default=300, gt=0)
     campaign_merge_gap_seconds: int = Field(default=1800, gt=0)
     alert_suppression_seconds: int = Field(default=300, ge=0)
+    campaign_lock_retry_count: int = Field(default=3, ge=0, le=20)
+    campaign_lock_retry_backoff_ms: int = Field(default=50, ge=1, le=5000)
+    campaign_inactivity_close_seconds: int = Field(default=3600, gt=0)
+    verification_pre_alert_lookback_days: int = Field(default=30, gt=0)
+    verification_post_alert_horizon_days: int = Field(default=7, ge=0)
     realtime_stream_key: str = "stream:alerts:v1"
     realtime_stream_max_length: int = Field(default=10_000, ge=100)
     mlflow_tracking_uri: AnyUrl | str = "http://localhost:5000"

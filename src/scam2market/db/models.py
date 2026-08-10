@@ -389,12 +389,7 @@ class AssetBaselineModel(TimestampMixin, Base):
 class ModelScoreModel(Base):
     __tablename__ = "model_scores"
     __table_args__ = (
-        UniqueConstraint(
-            "feature_window_id",
-            "feature_revision",
-            "model_version",
-            name="uq_model_score_window_revision_version",
-        ),
+        UniqueConstraint("idempotency_key", name="uq_model_score_idempotency_key"),
     )
 
     model_score_id: Mapped[PyUUID] = mapped_column(
@@ -406,6 +401,13 @@ class ModelScoreModel(Base):
     )
     feature_revision: Mapped[int] = mapped_column(Integer, nullable=False)
     model_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    base_model_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    fusion_policy_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    enrichment_profile: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    fusion_revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    evidence_cutoff: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    input_snapshot_ids_json: Mapped[dict[str, str]] = mapped_column(JSONB, default=dict)
+    idempotency_key: Mapped[str] = mapped_column(String(64), nullable=False)
     market_score: Mapped[float | None] = mapped_column(Float)
     social_score: Mapped[float | None] = mapped_column(Float)
     coordination_score: Mapped[float | None] = mapped_column(Float)
@@ -465,18 +467,34 @@ class CampaignModel(TimestampMixin, Base):
     scope_id: Mapped[str] = mapped_column(String(128), nullable=False, default="LIVE", index=True)
     asset_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     stage: Mapped[str] = mapped_column(String(64), nullable=False, default="NORMAL")
+    stage_confidence: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    stage_reason_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    stage_rule_version: Mapped[str] = mapped_column(
+        String(64), nullable=False, default="campaign-stage-rules-v2"
+    )
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="ACTIVE", index=True)
     max_severity: Mapped[str] = mapped_column(String(32), nullable=False, default="NORMAL")
     first_evidence_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     last_evidence_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     dominant_narrative_id: Mapped[PyUUID | None] = mapped_column(UUID(as_uuid=True), index=True)
+    last_applied_evidence_cutoff: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_applied_feature_revision: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_applied_fusion_revision: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_applied_enrichment_profile: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="BASE"
+    )
+    closed_reason: Mapped[str | None] = mapped_column(String(64))
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
 
 
 class CampaignEvidenceModel(Base):
     __tablename__ = "campaign_evidence"
+    __table_args__ = (
+        UniqueConstraint("scope_id", "evidence_event_id", name="uq_campaign_evidence_scope_event"),
+    )
 
     evidence_event_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    scope_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     campaign_id: Mapped[PyUUID] = mapped_column(
         ForeignKey("campaigns.campaign_id", ondelete="CASCADE"), nullable=False, index=True
     )
@@ -503,7 +521,15 @@ class CampaignStageHistoryModel(Base):
     to_stage: Mapped[str] = mapped_column(String(64), nullable=False)
     evidence_event_id: Mapped[str] = mapped_column(String(64), nullable=False)
     reason: Mapped[str] = mapped_column(String(255), nullable=False)
-    transitioned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    reason_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    confidence: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    rule_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    changed_at_event_time: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    recorded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
 
 
 class AlertModel(TimestampMixin, Base):
@@ -551,9 +577,7 @@ class AlertStateHistoryModel(Base):
 class NarrativeModel(TimestampMixin, Base):
     __tablename__ = "narratives"
     __table_args__ = (
-        UniqueConstraint(
-            "scope_id", "asset_id", "window_start", "cluster_key", name="uq_narrative_cluster"
-        ),
+        UniqueConstraint("scope_id", "asset_id", "stable_key", name="uq_narrative_stable_key"),
     )
 
     narrative_id: Mapped[PyUUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
@@ -564,6 +588,12 @@ class NarrativeModel(TimestampMixin, Base):
         DateTime(timezone=True), nullable=False, index=True
     )
     cluster_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    stable_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    current_revision_id: Mapped[PyUUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    current_revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    member_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    first_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     label: Mapped[str] = mapped_column(String(255), nullable=False)
     summary: Mapped[str] = mapped_column(Text, nullable=False)
     post_count: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -572,11 +602,39 @@ class NarrativeModel(TimestampMixin, Base):
     embedding_version: Mapped[str] = mapped_column(String(64), nullable=False)
 
 
+class NarrativeRevisionModel(Base):
+    __tablename__ = "narrative_revisions"
+    __table_args__ = (
+        UniqueConstraint("narrative_id", "revision", name="uq_narrative_revision_number"),
+        UniqueConstraint("narrative_id", "member_hash", name="uq_narrative_revision_members"),
+    )
+
+    narrative_revision_id: Mapped[PyUUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    narrative_id: Mapped[PyUUID] = mapped_column(
+        ForeignKey("narratives.narrative_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    member_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    cutoff_event_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    label: Mapped[str] = mapped_column(String(255), nullable=False)
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    centroid_json: Mapped[list[float]] = mapped_column(JSONB, nullable=False)
+    post_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
 class NarrativePostModel(Base):
     __tablename__ = "narrative_posts"
 
+    narrative_revision_id: Mapped[PyUUID] = mapped_column(
+        ForeignKey("narrative_revisions.narrative_revision_id", ondelete="CASCADE"),
+        primary_key=True,
+    )
     narrative_id: Mapped[PyUUID] = mapped_column(
-        ForeignKey("narratives.narrative_id", ondelete="CASCADE"), primary_key=True
+        ForeignKey("narratives.narrative_id", ondelete="CASCADE"), nullable=False, index=True
     )
     post_id: Mapped[str] = mapped_column(
         ForeignKey("social_posts.post_id", ondelete="CASCADE"), primary_key=True
@@ -595,11 +653,14 @@ class GraphSnapshotModel(Base):
     asset_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     window_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    cutoff_event_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    source_lineage_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     projection_version: Mapped[str] = mapped_column(String(64), nullable=False)
     projection_status: Mapped[str] = mapped_column(String(32), nullable=False)
     node_count: Mapped[int] = mapped_column(Integer, nullable=False)
     relationship_count: Mapped[int] = mapped_column(Integer, nullable=False)
     error_message: Mapped[str | None] = mapped_column(Text)
+    component_status_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -622,7 +683,9 @@ class GraphFeatureModel(Base):
 class DisclosureModel(TimestampMixin, Base):
     __tablename__ = "disclosures"
     __table_args__ = (
-        UniqueConstraint("source", "source_document_id", name="uq_disclosure_source_document"),
+        UniqueConstraint(
+            "source", "source_document_id", "document_version", name="uq_disclosure_version"
+        ),
     )
 
     disclosure_id: Mapped[PyUUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
@@ -636,6 +699,15 @@ class DisclosureModel(TimestampMixin, Base):
         DateTime(timezone=True), nullable=False, index=True
     )
     retrieved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    first_observed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+    ingested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    document_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    supersedes_disclosure_id: Mapped[PyUUID | None] = mapped_column(
+        ForeignKey("disclosures.disclosure_id", ondelete="SET NULL")
+    )
+    source_policy_version: Mapped[str] = mapped_column(String(64), nullable=False)
     reliability: Mapped[float] = mapped_column(Float, nullable=False)
     content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
 
@@ -666,6 +738,8 @@ class ClaimModel(TimestampMixin, Base):
     )
     asset_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     claim_text: Mapped[str] = mapped_column(Text, nullable=False)
+    claim_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    canonical_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     claim_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     extracted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     extractor_version: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -692,4 +766,6 @@ class ClaimVerificationModel(Base):
     deterministic_reason: Mapped[str] = mapped_column(Text, nullable=False)
     llm_explanation: Mapped[str | None] = mapped_column(Text)
     verifier_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_policy_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    retrospective_only: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     verified_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

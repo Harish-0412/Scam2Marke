@@ -11,6 +11,7 @@ from scam2market.db.models import (
     GraphSnapshotModel,
     NarrativeModel,
     NarrativePostModel,
+    NarrativeRevisionModel,
     PostAssetMentionModel,
     SocialPostModel,
 )
@@ -87,6 +88,9 @@ class SqlNarrativeRepository:
                 author_id=row.pseudonymous_author_id,
                 event_time=row.event_time,
                 text=row.text,
+                platform=row.platform,
+                source=row.source,
+                ingested_at=row.ingested_at,
                 hashtags=row.hashtags_json,
                 urls=row.urls_json,
                 reply_to=row.reply_to,
@@ -116,6 +120,12 @@ class SqlNarrativeRepository:
                             window_start=cluster.window_start,
                             window_end=cluster.window_end,
                             cluster_key=cluster.cluster_key,
+                            stable_key=cluster.stable_key,
+                            current_revision_id=cluster.narrative_revision_id,
+                            current_revision=cluster.revision,
+                            member_hash=cluster.member_hash,
+                            first_seen=cluster.first_seen,
+                            last_seen=cluster.last_seen,
                             label=cluster.label,
                             summary=cluster.summary,
                             post_count=len(cluster.post_ids),
@@ -125,16 +135,6 @@ class SqlNarrativeRepository:
                         )
                     )
                     await session.flush()
-                    session.add_all(
-                        [
-                            NarrativePostModel(
-                                narrative_id=cluster.narrative_id,
-                                post_id=post_id,
-                                similarity=cluster.similarities[post_id],
-                            )
-                            for post_id in cluster.post_ids
-                        ]
-                    )
                 else:
                     narrative.label = cluster.label
                     narrative.summary = cluster.summary
@@ -142,6 +142,42 @@ class SqlNarrativeRepository:
                     narrative.unique_author_count = cluster.unique_author_count
                     narrative.centroid_json = cluster.centroid
                     narrative.embedding_version = cluster.embedding_version
+                    narrative.cluster_key = cluster.cluster_key
+                    narrative.member_hash = cluster.member_hash
+                    narrative.last_seen = max(narrative.last_seen, cluster.last_seen)
+                    if cluster.revision >= narrative.current_revision:
+                        narrative.current_revision = cluster.revision
+                        narrative.current_revision_id = cluster.narrative_revision_id
+                revision = await session.get(
+                    NarrativeRevisionModel, cluster.narrative_revision_id
+                )
+                if revision is None:
+                    session.add(
+                        NarrativeRevisionModel(
+                            narrative_revision_id=cluster.narrative_revision_id,
+                            narrative_id=cluster.narrative_id,
+                            revision=cluster.revision,
+                            member_hash=cluster.member_hash,
+                            window_start=cluster.window_start,
+                            cutoff_event_time=cluster.window_end,
+                            label=cluster.label,
+                            summary=cluster.summary,
+                            centroid_json=cluster.centroid,
+                            post_count=len(cluster.post_ids),
+                        )
+                    )
+                    await session.flush()
+                    session.add_all(
+                        [
+                            NarrativePostModel(
+                                narrative_revision_id=cluster.narrative_revision_id,
+                                narrative_id=cluster.narrative_id,
+                                post_id=post_id,
+                                similarity=cluster.similarities[post_id],
+                            )
+                            for post_id in cluster.post_ids
+                        ]
+                    )
             campaign = await session.scalar(
                 select(CampaignModel)
                 .where(
@@ -163,11 +199,14 @@ class SqlNarrativeRepository:
                     asset_id=graph.asset_id,
                     window_start=graph.window_start,
                     window_end=graph.window_end,
+                    cutoff_event_time=graph.cutoff_event_time,
+                    source_lineage_hash=graph.source_lineage_hash,
                     projection_version=graph.projection_version,
                     projection_status=graph.projection_status.value,
                     node_count=graph.node_count,
                     relationship_count=graph.relationship_count,
                     error_message=graph.error_message,
+                    component_status_json=graph.component_statuses,
                 )
             )
             await session.flush()

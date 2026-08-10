@@ -12,7 +12,7 @@ class CampaignStage(StrEnum):
     early_social_seeding = "EARLY_SOCIAL_SEEDING"
     coordinated_amplification = "COORDINATED_AMPLIFICATION"
     market_pump = "MARKET_PUMP"
-    distribution = "DISTRIBUTION"
+    possible_distribution = "POSSIBLE_DISTRIBUTION"
     dump = "DUMP"
     post_event = "POST_EVENT"
 
@@ -63,6 +63,10 @@ class AlertTrigger(BaseModel):
 class CampaignAssessment(BaseModel):
     next_stage: CampaignStage
     transition_reason: str
+    stage_confidence: float = Field(ge=0, le=1)
+    reason_codes: list[str] = Field(default_factory=list)
+    stage_evidence_ids: list[str] = Field(default_factory=list)
+    rule_version: str = "campaign-stage-rules-v2"
     alerts: list[AlertTrigger] = Field(default_factory=list)
 
 
@@ -71,10 +75,16 @@ class CampaignRecord(BaseModel):
     scope_id: str
     asset_id: str
     stage: CampaignStage
+    stage_confidence: float = Field(default=0.0, ge=0, le=1)
+    stage_reason: dict[str, object] = Field(default_factory=dict)
     status: CampaignStatus
     max_severity: RiskLevel
     first_evidence_at: datetime
     last_evidence_at: datetime
+    last_applied_evidence_cutoff: datetime | None = None
+    last_applied_feature_revision: int = 0
+    last_applied_fusion_revision: int = 0
+    last_applied_enrichment_profile: str = "BASE"
     version: int
 
 
@@ -95,4 +105,5 @@ class CampaignUpdate(BaseModel):
     campaign: CampaignRecord
     alerts: list[AlertRecord] = Field(default_factory=list)
     duplicate_evidence: bool = False
+    stale_evidence: bool = False
     emitted_event_ids: list[str] = Field(default_factory=list)

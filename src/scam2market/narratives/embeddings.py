@@ -1,6 +1,7 @@
 import hashlib
 import math
 import re
+from contextlib import suppress
 from typing import Any, Protocol
 
 from qdrant_client import AsyncQdrantClient, models
@@ -26,10 +27,14 @@ class VectorIndex(Protocol):
 
 
 class DeterministicHashEmbedding:
-    version = "hash-embedding-v1"
+    version = "sha256-hashing-v2"
+    provider = "deterministic-hash"
+    normalization = "l2"
+    similarity_metric = "cosine"
 
     def __init__(self, dimensions: int = 128) -> None:
         self.dimensions = dimensions
+        self.version = f"sha256-hashing-v2-d{dimensions}"
 
     async def embed(self, text: str) -> list[float]:
         vector = [0.0] * self.dimensions
@@ -67,6 +72,20 @@ class QdrantVectorIndex:
                     size=self._dimensions, distance=models.Distance.COSINE
                 ),
             )
+        for field_name, schema in {
+            "asset_id": models.PayloadSchemaType.KEYWORD,
+            "scope_id": models.PayloadSchemaType.KEYWORD,
+            "event_time": models.PayloadSchemaType.DATETIME,
+            "embedding_version": models.PayloadSchemaType.KEYWORD,
+        }.items():
+            # Existing indexes and optional-index failures do not block deterministic storage.
+            with suppress(Exception):
+                await self._client.create_payload_index(
+                    collection_name=self._collection,
+                    field_name=field_name,
+                    field_schema=schema,
+                    wait=True,
+                )
         self._ready = True
 
     async def upsert(self, point_id: str, vector: list[float], metadata: dict[str, Any]) -> None:

@@ -405,6 +405,8 @@ class SqlScoreRepository:
         self._sessions = sessions
 
     async def persist(self, result: FusionResult) -> bool:
+        if result.evidence_cutoff is None:
+            raise ValueError("fusion evidence cutoff is required for persistence")
         async with self._sessions() as session:
             try:
                 async with session.begin():
@@ -414,6 +416,13 @@ class SqlScoreRepository:
                             feature_window_id=UUID(result.feature_window_id),
                             feature_revision=result.feature_revision,
                             model_version=result.model_version,
+                            base_model_version=result.base_model_version,
+                            fusion_policy_version=result.fusion_policy_version,
+                            enrichment_profile=result.enrichment_profile.value,
+                            fusion_revision=result.fusion_revision,
+                            evidence_cutoff=result.evidence_cutoff,
+                            input_snapshot_ids_json=result.input_snapshot_ids,
+                            idempotency_key=result.idempotency_key,
                             market_score=result.market_score,
                             social_score=result.social_score,
                             coordination_score=result.coordination_score,

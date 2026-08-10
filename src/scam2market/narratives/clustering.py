@@ -27,10 +27,15 @@ _STOPWORDS = {
 
 
 class DeterministicNarrativeClusterer:
-    version = "narrative-cluster-v1"
+    version = "narrative-cluster-v2-centroid-coherent"
 
-    def __init__(self, similarity_threshold: float = 0.76) -> None:
+    def __init__(
+        self,
+        similarity_threshold: float = 0.76,
+        minimum_exemplar_similarity: float = 0.68,
+    ) -> None:
         self._threshold = similarity_threshold
+        self._minimum_exemplar_similarity = minimum_exemplar_similarity
 
     def cluster(
         self,
@@ -40,31 +45,27 @@ class DeterministicNarrativeClusterer:
         window_end: datetime,
         embedding_version: str,
     ) -> list[NarrativeCluster]:
-        ordered = sorted(posts, key=lambda item: item.post_id)
-        parents = list(range(len(ordered)))
-
-        def find(index: int) -> int:
-            while parents[index] != index:
-                parents[index] = parents[parents[index]]
-                index = parents[index]
-            return index
-
-        def union(left: int, right: int) -> None:
-            left_root, right_root = find(left), find(right)
-            if left_root != right_root:
-                parents[max(left_root, right_root)] = min(left_root, right_root)
-
-        for left in range(len(ordered)):
-            for right in range(left + 1, len(ordered)):
+        ordered = sorted(posts, key=lambda item: (item.event_time, item.post_id))
+        groups: list[list[NarrativePost]] = []
+        for post in ordered:
+            candidates: list[tuple[float, str, int]] = []
+            for index, group in enumerate(groups):
+                centroid = _centroid(group)
+                centroid_similarity = cosine_similarity(post.vector, centroid)
+                minimum_similarity = min(
+                    cosine_similarity(post.vector, member.vector) for member in group
+                )
                 if (
-                    cosine_similarity(ordered[left].vector, ordered[right].vector)
-                    >= self._threshold
+                    centroid_similarity >= self._threshold
+                    and minimum_similarity >= self._minimum_exemplar_similarity
                 ):
-                    union(left, right)
-
-        groups: dict[int, list[NarrativePost]] = {}
-        for index, post in enumerate(ordered):
-            groups.setdefault(find(index), []).append(post)
+                    seed = min(group, key=lambda item: (item.event_time, item.post_id)).post_id
+                    candidates.append((centroid_similarity, seed, index))
+            if candidates:
+                _, _, selected = sorted(candidates, key=lambda item: (-item[0], item[1]))[0]
+                groups[selected].append(post)
+            else:
+                groups.append([post])
 
         clusters = [
             self._materialize(
@@ -73,7 +74,7 @@ class DeterministicNarrativeClusterer:
                 window_end=window_end,
                 embedding_version=embedding_version,
             )
-            for _, group in sorted(groups.items())
+            for group in groups
         ]
         return sorted(clusters, key=lambda item: str(item.narrative_id))
 
@@ -86,19 +87,17 @@ class DeterministicNarrativeClusterer:
         embedding_version: str,
     ) -> NarrativeCluster:
         post_ids = sorted(post.post_id for post in posts)
-        cluster_key = hashlib.sha256("|".join(post_ids).encode()).hexdigest()
-        first = posts[0]
+        member_hash = hashlib.sha256("|".join(post_ids).encode()).hexdigest()
+        first = min(posts, key=lambda item: (item.event_time, item.post_id))
+        stable_key = f"{window_start.isoformat()}:{first.post_id}:{self.version}"
         narrative_id = uuid5(
             NAMESPACE_URL,
-            f"narrative:{first.scope_id}:{first.asset_id}:{window_start.isoformat()}:{cluster_key}",
+            f"narrative:{first.scope_id}:{first.asset_id}:{stable_key}",
         )
-        dimensions = len(posts[0].vector)
-        centroid = [
-            sum(post.vector[index] for post in posts) / len(posts) for index in range(dimensions)
-        ]
-        norm = math.sqrt(sum(value * value for value in centroid))
-        if norm:
-            centroid = [value / norm for value in centroid]
+        narrative_revision_id = uuid5(
+            NAMESPACE_URL, f"narrative-revision:{narrative_id}:{member_hash}"
+        )
+        centroid = _centroid(posts)
         similarities = {post.post_id: cosine_similarity(post.vector, centroid) for post in posts}
         terms = Counter(
             token
@@ -116,11 +115,16 @@ class DeterministicNarrativeClusterer:
         summary = " ".join(summary_parts)[:1000]
         return NarrativeCluster(
             narrative_id=narrative_id,
-            cluster_key=cluster_key,
+            narrative_revision_id=narrative_revision_id,
+            cluster_key=member_hash,
+            stable_key=stable_key,
+            member_hash=member_hash,
             scope_id=first.scope_id,
             asset_id=first.asset_id,
             window_start=window_start,
             window_end=window_end,
+            first_seen=min(post.event_time for post in posts),
+            last_seen=max(post.event_time for post in posts),
             label=label,
             summary=summary,
             post_ids=post_ids,
@@ -129,3 +133,12 @@ class DeterministicNarrativeClusterer:
             centroid=centroid,
             embedding_version=embedding_version,
         )
+
+
+def _centroid(posts: list[NarrativePost]) -> list[float]:
+    dimensions = len(posts[0].vector)
+    centroid = [
+        sum(post.vector[index] for post in posts) / len(posts) for index in range(dimensions)
+    ]
+    norm = math.sqrt(sum(value * value for value in centroid))
+    return [value / norm for value in centroid] if norm else centroid

@@ -33,7 +33,7 @@ async def run() -> None:
                 "graph.features.v1",
                 "claim.verification.v1",
             ),
-            group_id="baseline-intelligence-worker-v2",
+            group_id="baseline-intelligence-worker-v3",
         ) as consumer:
             async for event in consumer.events():
                 if event.event_type in {
@@ -49,7 +49,7 @@ async def run() -> None:
                     await service.score(
                         FeatureSnapshot.model_validate(event.payload["feature_snapshot"]),
                         graph_score=(float(graph_score) if graph_score is not None else None),
-                        enrichment_context_id=str(event.payload["graph_snapshot_id"]),
+                        graph_snapshot_id=str(event.payload["graph_snapshot_id"]),
                     )
                 elif event.event_type == EventType.claim_verification_completed:
                     graph_score = event.payload.get("graph_score")
@@ -58,7 +58,12 @@ async def run() -> None:
                         claim_risk=float(event.payload["claim_risk"]),
                         legitimate_event_score=float(event.payload["legitimate_event_score"]),
                         graph_score=(float(graph_score) if graph_score is not None else None),
-                        enrichment_context_id=str(event.payload["narrative_id"]),
+                        graph_snapshot_id=(
+                            str(event.payload["graph_snapshot_id"])
+                            if event.payload.get("graph_snapshot_id")
+                            else None
+                        ),
+                        verification_snapshot_id=str(event.payload["verification_snapshot_id"]),
                     )
                 await consumer.commit()
     finally:

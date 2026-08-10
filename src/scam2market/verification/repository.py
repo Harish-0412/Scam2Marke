@@ -55,10 +55,13 @@ class SqlVerificationRepository:
                 select(DisclosureModel).where(
                     DisclosureModel.source == document.source,
                     DisclosureModel.source_document_id == document.source_document_id,
+                    DisclosureModel.document_version == document.document_version,
                 )
             )
             if existing is not None:
                 return False
+            if document.first_observed_at is None or document.ingested_at is None:
+                raise ValueError("disclosure availability timestamps must be normalized")
             session.add(
                 DisclosureModel(
                     disclosure_id=document.disclosure_id,
@@ -70,6 +73,11 @@ class SqlVerificationRepository:
                     url=document.url,
                     published_at=document.published_at,
                     retrieved_at=document.retrieved_at,
+                    first_observed_at=document.first_observed_at,
+                    ingested_at=document.ingested_at,
+                    document_version=document.document_version,
+                    supersedes_disclosure_id=document.supersedes_disclosure_id,
+                    source_policy_version=document.source_policy_version,
                     reliability=document.reliability,
                     content_hash=document.content_hash,
                 )
@@ -130,6 +138,9 @@ class SqlVerificationRepository:
                 title=document.title,
                 text=chunk.text,
                 published_at=document.published_at,
+                first_observed_at=document.first_observed_at,
+                document_version=document.document_version,
+                source_policy_version=document.source_policy_version,
                 reliability=document.reliability,
             )
             for chunk, document in rows
@@ -152,6 +163,8 @@ class SqlVerificationRepository:
                             narrative_id=claim.narrative_id,
                             asset_id=claim.asset_id,
                             claim_text=claim.claim_text,
+                            claim_type=claim.claim_type,
+                            canonical_json=claim.canonical_payload,
                             claim_hash=claim.claim_hash,
                             extracted_at=claim.extracted_at,
                             extractor_version=claim.extractor_version,
@@ -172,6 +185,8 @@ class SqlVerificationRepository:
                         deterministic_reason=item.deterministic_reason,
                         llm_explanation=item.llm_explanation,
                         verifier_version=item.verifier_version,
+                        source_policy_version=item.source_policy_version,
+                        retrospective_only=item.retrospective_only,
                         verified_at=item.verified_at,
                     )
                     for item in verifications
@@ -197,7 +212,7 @@ class InMemoryVerificationRepository:
     async def persist_disclosure(
         self, document: DisclosureDocument, chunks: list[DisclosureChunk]
     ) -> bool:
-        key = f"{document.source}:{document.source_document_id}"
+        key = f"{document.source}:{document.source_document_id}:{document.document_version}"
         if key in self.documents:
             return False
         self.documents[key] = (document, chunks)
@@ -219,6 +234,7 @@ class InMemoryVerificationRepository:
                 continue
             if not earliest <= document.published_at <= latest:
                 continue
+            first_observed_at = document.first_observed_at or document.retrieved_at
             results.extend(
                 DisclosureCandidate(
                     chunk_id=chunk.chunk_id,
@@ -228,6 +244,9 @@ class InMemoryVerificationRepository:
                     title=document.title,
                     text=chunk.text,
                     published_at=document.published_at,
+                    first_observed_at=first_observed_at,
+                    document_version=document.document_version,
+                    source_policy_version=document.source_policy_version,
                     reliability=document.reliability,
                 )
                 for chunk in chunks

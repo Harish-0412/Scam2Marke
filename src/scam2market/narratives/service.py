@@ -35,6 +35,21 @@ class NarrativeIntelligenceService:
         indexing_errors: list[str] = []
         for post in posts:
             post.vector = await self._embedding.embed(post.text)
+        clusters = self._clusterer.cluster(
+            posts,
+            window_start=snapshot.window_start,
+            window_end=snapshot.window_end,
+            embedding_version=self._embedding.version,
+        )
+        clusters = [
+            cluster.model_copy(update={"revision": snapshot.revision}) for cluster in clusters
+        ]
+        revision_by_post = {
+            post_id: str(cluster.narrative_revision_id)
+            for cluster in clusters
+            for post_id in cluster.post_ids
+        }
+        for post in posts:
             try:
                 await self._index.upsert(
                     post.post_id,
@@ -44,26 +59,41 @@ class NarrativeIntelligenceService:
                         "scope_id": post.scope_id,
                         "asset_id": post.asset_id,
                         "event_time": post.event_time.isoformat(),
+                        "source": post.source,
+                        "platform": post.platform,
+                        "language": post.language,
+                        "ingested_at": (
+                            post.ingested_at.isoformat() if post.ingested_at else None
+                        ),
                         "embedding_version": self._embedding.version,
+                        "narrative_revision_id": revision_by_post[post.post_id],
                     },
                 )
             except Exception as error:
                 indexing_errors.append(f"vector index: {error!r}")
-        clusters = self._clusterer.cluster(
-            posts,
-            window_start=snapshot.window_start,
-            window_end=snapshot.window_end,
-            embedding_version=self._embedding.version,
+        features = self._features.compute(
+            posts, clusters, cutoff_event_time=snapshot.window_end
         )
-        features = self._features.compute(posts, clusters)
         errors = list(indexing_errors)
+        component_statuses = {
+            "embedding_provider_status": "HEALTHY",
+            "qdrant_status": "DEGRADED" if indexing_errors else "HEALTHY",
+            "neo4j_status": "HEALTHY",
+            "deterministic_feature_status": "HEALTHY",
+            "graph_score_status": "AVAILABLE" if features.graph_score is not None else "MISSING",
+        }
         campaign_id, alert_ids = await self._repository.campaign_context(snapshot)
         try:
             node_count, relationship_count = await self._projector.project(
-                posts, clusters, campaign_id=campaign_id, alert_ids=alert_ids
+                posts,
+                clusters,
+                cutoff_event_time=snapshot.window_end,
+                campaign_id=campaign_id,
+                alert_ids=alert_ids,
             )
         except Exception as error:
             errors.append(f"graph projection: {error!r}")
+            component_statuses["neo4j_status"] = "DEGRADED"
             node_count, relationship_count = 0, 0
         computed_at = datetime.now(tz=UTC)
         graph = GraphSnapshot(
@@ -77,11 +107,14 @@ class NarrativeIntelligenceService:
             feature_revision=snapshot.revision,
             window_start=snapshot.window_start,
             window_end=snapshot.window_end,
+            cutoff_event_time=snapshot.window_end,
+            source_lineage_hash=snapshot.lineage.source_hash,
             projection_version=self._projector.version,
             projection_status=(ProjectionStatus.degraded if errors else ProjectionStatus.complete),
             node_count=node_count,
             relationship_count=relationship_count,
             error_message="; ".join(errors)[:2000] or None,
+            component_statuses=component_statuses,
             features=features,
             computed_at=computed_at,
         )
@@ -91,11 +124,12 @@ class NarrativeIntelligenceService:
                 _event(
                     snapshot,
                     EventType.narrative_clustered,
-                    f"narrative:{cluster.narrative_id}",
+                    f"narrative-revision:{cluster.narrative_revision_id}",
                     {
                         "narrative": cluster.model_dump(mode="json"),
                         "feature_snapshot": snapshot.model_dump(mode="json"),
                         "graph_features": features.model_dump(mode="json"),
+                        "graph_snapshot_id": str(graph.graph_snapshot_id),
                     },
                     computed_at,
                 ),

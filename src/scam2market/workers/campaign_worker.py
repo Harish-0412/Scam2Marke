@@ -18,10 +18,12 @@ async def run() -> None:
             AsyncSessionLocal,
             merge_gap_seconds=settings.campaign_merge_gap_seconds,
             suppression_seconds=settings.alert_suppression_seconds,
+            lock_retry_count=settings.campaign_lock_retry_count,
+            lock_retry_backoff_ms=settings.campaign_lock_retry_backoff_ms,
         )
     )
     async with EventConsumer(
-        ("model.fusion.score.v1",), group_id="campaign-alert-worker-v1"
+        ("model.fusion.score.v1",), group_id="campaign-alert-worker-v2"
     ) as consumer:
         async for record in consumer.records():
             try:

@@ -45,10 +45,14 @@ class SqlCampaignRepository:
         *,
         merge_gap_seconds: int = 1800,
         suppression_seconds: int = 300,
+        lock_retry_count: int = 3,
+        lock_retry_backoff_ms: int = 50,
     ) -> None:
         self._sessions = sessions
         self._merge_gap = timedelta(seconds=merge_gap_seconds)
         self._suppression = timedelta(seconds=suppression_seconds)
+        self._lock_retry_count = lock_retry_count
+        self._lock_retry_backoff = lock_retry_backoff_ms / 1000
 
     async def apply(
         self, evidence: CampaignEvidence, state_machine: CampaignStateMachine
@@ -56,10 +60,24 @@ class SqlCampaignRepository:
         emitted: list[str] = []
         alert_records: list[AlertRecord] = []
         async with self._sessions() as session, session.begin():
-            await session.execute(
-                text("SELECT pg_advisory_xact_lock(hashtextextended(:campaign_key, 0))"),
-                {"campaign_key": f"{evidence.scope_id}:{evidence.asset_id}"},
-            )
+            campaign_key = f"{evidence.scope_id}:{evidence.asset_id}"
+            acquired = False
+            for attempt in range(self._lock_retry_count + 1):
+                acquired = bool(
+                    await session.scalar(
+                        text(
+                            "SELECT pg_try_advisory_xact_lock("
+                            "hashtextextended(:campaign_key, 0))"
+                        ),
+                        {"campaign_key": campaign_key},
+                    )
+                )
+                if acquired:
+                    break
+                if attempt < self._lock_retry_count:
+                    await asyncio.sleep(self._lock_retry_backoff * (attempt + 1))
+            if not acquired:
+                raise TimeoutError(f"campaign lock timeout for {campaign_key}")
             prior = await session.get(CampaignEvidenceModel, evidence.event_id)
             if prior is not None:
                 campaign = await session.get(CampaignModel, prior.campaign_id)
@@ -76,11 +94,29 @@ class SqlCampaignRepository:
                 )
                 .with_for_update()
             )
+            if campaign is not None and _is_stale_campaign_evidence(campaign, evidence):
+                session.add(
+                    CampaignEvidenceModel(
+                        evidence_event_id=evidence.event_id,
+                        scope_id=evidence.scope_id,
+                        campaign_id=campaign.campaign_id,
+                        event_time=evidence.event_time,
+                        evidence_type=EventType.model_fusion_scored.value,
+                        evidence_fingerprint=_fingerprint(
+                            evidence.fusion.model_dump(mode="json")
+                        ),
+                        evidence_json=evidence.fusion.model_dump(mode="json"),
+                    )
+                )
+                return CampaignUpdate(
+                    campaign=_campaign_record(campaign), stale_evidence=True
+                )
             if (
                 campaign is not None
                 and evidence.event_time - campaign.last_evidence_at > self._merge_gap
             ):
                 campaign.status = CampaignStatus.closed.value
+                campaign.closed_reason = "INACTIVITY_TIMEOUT"
                 campaign.version += 1
                 closed = _domain_event(
                     evidence,
@@ -107,10 +143,23 @@ class SqlCampaignRepository:
                     scope_id=evidence.scope_id,
                     asset_id=evidence.asset_id,
                     stage=assessment.next_stage.value,
+                    stage_confidence=assessment.stage_confidence,
+                    stage_reason_json={
+                        "reason": assessment.transition_reason,
+                        "reason_codes": assessment.reason_codes,
+                        "evidence_ids": assessment.stage_evidence_ids,
+                    },
+                    stage_rule_version=assessment.rule_version,
                     status=CampaignStatus.active.value,
                     max_severity=evidence.fusion.severity.value,
                     first_evidence_at=evidence.event_time,
                     last_evidence_at=evidence.event_time,
+                    last_applied_evidence_cutoff=(
+                        evidence.fusion.evidence_cutoff or evidence.event_time
+                    ),
+                    last_applied_feature_revision=evidence.fusion.feature_revision,
+                    last_applied_fusion_revision=evidence.fusion.fusion_revision,
+                    last_applied_enrichment_profile=evidence.fusion.enrichment_profile.value,
                     version=1,
                 )
                 session.add(campaign)
@@ -122,7 +171,13 @@ class SqlCampaignRepository:
                         to_stage=assessment.next_stage.value,
                         evidence_event_id=evidence.event_id,
                         reason=assessment.transition_reason,
-                        transitioned_at=evidence.event_time,
+                        reason_json={
+                            "reason_codes": assessment.reason_codes,
+                            "evidence_ids": assessment.stage_evidence_ids,
+                        },
+                        confidence=assessment.stage_confidence,
+                        rule_version=assessment.rule_version,
+                        changed_at_event_time=evidence.event_time,
                     )
                 )
                 created = _domain_event(
@@ -141,6 +196,21 @@ class SqlCampaignRepository:
                 campaign.max_severity = max_risk(
                     RiskLevel(campaign.max_severity), evidence.fusion.severity
                 ).value
+                campaign.stage_confidence = assessment.stage_confidence
+                campaign.stage_reason_json = {
+                    "reason": assessment.transition_reason,
+                    "reason_codes": assessment.reason_codes,
+                    "evidence_ids": assessment.stage_evidence_ids,
+                }
+                campaign.stage_rule_version = assessment.rule_version
+                campaign.last_applied_evidence_cutoff = (
+                    evidence.fusion.evidence_cutoff or evidence.event_time
+                )
+                campaign.last_applied_feature_revision = evidence.fusion.feature_revision
+                campaign.last_applied_fusion_revision = evidence.fusion.fusion_revision
+                campaign.last_applied_enrichment_profile = (
+                    evidence.fusion.enrichment_profile.value
+                )
                 campaign.version += 1
                 if assessment.next_stage != old_stage:
                     campaign.stage = assessment.next_stage.value
@@ -151,7 +221,13 @@ class SqlCampaignRepository:
                             to_stage=assessment.next_stage.value,
                             evidence_event_id=evidence.event_id,
                             reason=assessment.transition_reason,
-                            transitioned_at=evidence.event_time,
+                            reason_json={
+                                "reason_codes": assessment.reason_codes,
+                                "evidence_ids": assessment.stage_evidence_ids,
+                            },
+                            confidence=assessment.stage_confidence,
+                            rule_version=assessment.rule_version,
+                            changed_at_event_time=evidence.event_time,
                         )
                     )
                     changed = _domain_event(
@@ -173,6 +249,7 @@ class SqlCampaignRepository:
             session.add(
                 CampaignEvidenceModel(
                     evidence_event_id=evidence.event_id,
+                    scope_id=evidence.scope_id,
                     campaign_id=campaign.campaign_id,
                     event_time=evidence.event_time,
                     evidence_type=EventType.model_fusion_scored.value,
@@ -326,19 +403,47 @@ class InMemoryCampaignRepository:
                     scope_id=evidence.scope_id,
                     asset_id=evidence.asset_id,
                     stage=assessment.next_stage,
+                    stage_confidence=assessment.stage_confidence,
+                    stage_reason={
+                        "reason": assessment.transition_reason,
+                        "reason_codes": assessment.reason_codes,
+                        "evidence_ids": assessment.stage_evidence_ids,
+                    },
                     status=CampaignStatus.active,
                     max_severity=evidence.fusion.severity,
                     first_evidence_at=evidence.event_time,
                     last_evidence_at=evidence.event_time,
+                    last_applied_evidence_cutoff=(
+                        evidence.fusion.evidence_cutoff or evidence.event_time
+                    ),
+                    last_applied_feature_revision=evidence.fusion.feature_revision,
+                    last_applied_fusion_revision=evidence.fusion.fusion_revision,
+                    last_applied_enrichment_profile=evidence.fusion.enrichment_profile.value,
                     version=1,
                 )
                 event_type = EventType.campaign_created
             else:
+                if _is_stale_campaign_record(existing, evidence):
+                    return CampaignUpdate(campaign=existing, stale_evidence=True)
                 campaign = existing.model_copy(
                     update={
                         "stage": assessment.next_stage,
+                        "stage_confidence": assessment.stage_confidence,
+                        "stage_reason": {
+                            "reason": assessment.transition_reason,
+                            "reason_codes": assessment.reason_codes,
+                            "evidence_ids": assessment.stage_evidence_ids,
+                        },
                         "max_severity": max_risk(existing.max_severity, evidence.fusion.severity),
                         "last_evidence_at": max(existing.last_evidence_at, evidence.event_time),
+                        "last_applied_evidence_cutoff": (
+                            evidence.fusion.evidence_cutoff or evidence.event_time
+                        ),
+                        "last_applied_feature_revision": evidence.fusion.feature_revision,
+                        "last_applied_fusion_revision": evidence.fusion.fusion_revision,
+                        "last_applied_enrichment_profile": (
+                            evidence.fusion.enrichment_profile.value
+                        ),
                         "version": existing.version + 1,
                     }
                 )
@@ -420,6 +525,52 @@ class InMemoryCampaignRepository:
             return CampaignUpdate(campaign=campaign, alerts=records, emitted_event_ids=emitted)
 
 
+_PROFILE_PRIORITY = {
+    "BASE": 0,
+    "GRAPH": 1,
+    "VERIFICATION": 2,
+    "GRAPH_AND_VERIFICATION": 3,
+}
+
+
+def _is_stale_campaign_evidence(
+    campaign: CampaignModel, evidence: CampaignEvidence
+) -> bool:
+    if campaign.last_applied_evidence_cutoff is None:
+        return False
+    return _evaluation_order(
+        evidence,
+    ) <= (
+        campaign.last_applied_evidence_cutoff,
+        campaign.last_applied_feature_revision,
+        campaign.last_applied_fusion_revision,
+        _PROFILE_PRIORITY.get(campaign.last_applied_enrichment_profile, 0),
+    )
+
+
+def _is_stale_campaign_record(
+    campaign: CampaignRecord, evidence: CampaignEvidence
+) -> bool:
+    if campaign.last_applied_evidence_cutoff is None:
+        return False
+    return _evaluation_order(evidence) <= (
+        campaign.last_applied_evidence_cutoff,
+        campaign.last_applied_feature_revision,
+        campaign.last_applied_fusion_revision,
+        _PROFILE_PRIORITY.get(campaign.last_applied_enrichment_profile, 0),
+    )
+
+
+def _evaluation_order(evidence: CampaignEvidence) -> tuple[datetime, int, int, int]:
+    fusion = evidence.fusion
+    return (
+        fusion.evidence_cutoff or evidence.event_time,
+        fusion.feature_revision,
+        fusion.fusion_revision,
+        _PROFILE_PRIORITY[fusion.enrichment_profile.value],
+    )
+
+
 def _domain_event(
     evidence: CampaignEvidence,
     event_type: EventType,
@@ -474,10 +625,20 @@ def _campaign_payload(campaign: CampaignModel) -> dict[str, object]:
         "scope_id": campaign.scope_id,
         "asset_id": campaign.asset_id,
         "stage": campaign.stage,
+        "stage_confidence": campaign.stage_confidence,
+        "stage_reason": campaign.stage_reason_json,
         "status": campaign.status,
         "max_severity": campaign.max_severity,
         "first_evidence_at": campaign.first_evidence_at.isoformat(),
         "last_evidence_at": campaign.last_evidence_at.isoformat(),
+        "last_applied_evidence_cutoff": (
+            campaign.last_applied_evidence_cutoff.isoformat()
+            if campaign.last_applied_evidence_cutoff
+            else None
+        ),
+        "last_applied_feature_revision": campaign.last_applied_feature_revision,
+        "last_applied_fusion_revision": campaign.last_applied_fusion_revision,
+        "last_applied_enrichment_profile": campaign.last_applied_enrichment_profile,
         "version": campaign.version,
     }
 

@@ -53,11 +53,18 @@ async def campaigns(
             "scope_id": row.scope_id,
             "asset_id": row.asset_id,
             "stage": row.stage,
+            "stage_confidence": row.stage_confidence,
+            "stage_reason": row.stage_reason_json,
+            "stage_rule_version": row.stage_rule_version,
             "status": row.status,
             "max_severity": row.max_severity,
             "first_evidence_at": row.first_evidence_at,
             "last_evidence_at": row.last_evidence_at,
             "version": row.version,
+            "last_applied_evidence_cutoff": row.last_applied_evidence_cutoff,
+            "last_applied_feature_revision": row.last_applied_feature_revision,
+            "last_applied_fusion_revision": row.last_applied_fusion_revision,
+            "last_applied_enrichment_profile": row.last_applied_enrichment_profile,
         }
         for row in rows
     ]
@@ -125,6 +132,8 @@ async def campaign_evidence(
         "campaign_id": str(campaign.campaign_id),
         "asset_id": campaign.asset_id,
         "stage": campaign.stage,
+        "stage_confidence": campaign.stage_confidence,
+        "stage_reason": campaign.stage_reason_json,
         "dominant_narrative": (
             {
                 "narrative_id": str(narrative.narrative_id),
@@ -161,7 +170,8 @@ async def alert_sse(
                 yield b": heartbeat\n\n"
                 continue
             yield b"id: " + event_id.encode() + b"\n"
-            yield b"event: alert\n"
+            event_name = str(payload.get("event_type", "alert"))
+            yield b"event: " + event_name.encode() + b"\n"
             yield b"data: " + orjson.dumps(payload) + b"\n\n"
 
     return StreamingResponse(

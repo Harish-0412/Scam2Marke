@@ -33,11 +33,18 @@ async def run() -> None:
     ingestion = DisclosureIngestionService(
         repository=repository, embedding=embedding, vector_index=index
     )
-    verification = NarrativeVerificationService(repository, TimeBoundedClaimVerifier(repository))
+    verification = NarrativeVerificationService(
+        repository,
+        TimeBoundedClaimVerifier(
+            repository,
+            lookback_days=settings.verification_pre_alert_lookback_days,
+            future_days=settings.verification_post_alert_horizon_days,
+        ),
+    )
     try:
         async with EventConsumer(
             ("disclosures.documents.v1", "narrative.events.v1"),
-            group_id="claim-verification-worker-v1",
+            group_id="claim-verification-worker-v2",
         ) as consumer:
             async for record in consumer.records():
                 event = record.event

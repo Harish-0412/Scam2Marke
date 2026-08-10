@@ -29,6 +29,18 @@ class RedisRealtimeBroker:
 
     async def subscribe(self, after_id: str = "$") -> AsyncIterator[tuple[str, dict[str, Any]]]:
         cursor = after_id
+        if cursor not in {"$", "0-0"}:
+            oldest_entries = await self._redis.xrange(self._stream_key, count=1)
+            if oldest_entries:
+                raw_oldest_id = oldest_entries[0][0]
+                oldest_id = (
+                    raw_oldest_id.decode()
+                    if isinstance(raw_oldest_id, bytes)
+                    else str(raw_oldest_id)
+                )
+                if _stream_id(cursor) < _stream_id(oldest_id):
+                    yield oldest_id, _stream_gap(cursor, oldest_id)
+                    cursor = "$"
         while True:
             batches = cast(
                 list[tuple[bytes, list[tuple[bytes, dict[bytes, bytes]]]]],
@@ -53,23 +65,36 @@ class RedisRealtimeBroker:
 
 
 class InMemoryRealtimeBroker:
-    def __init__(self) -> None:
+    def __init__(self, max_length: int | None = None) -> None:
         self.history: list[tuple[str, dict[str, Any]]] = []
+        self._next_id = 1
+        self._max_length = max_length
         self._subscribers: set[asyncio.Queue[tuple[str, dict[str, Any]]]] = set()
 
     async def publish(self, payload: Mapping[str, Any]) -> str:
-        event_id = f"{len(self.history) + 1}-0"
+        event_id = f"{self._next_id}-0"
+        self._next_id += 1
         item = (event_id, dict(payload))
         self.history.append(item)
+        if self._max_length is not None and len(self.history) > self._max_length:
+            self.history = self.history[-self._max_length :]
         for queue in self._subscribers:
             await queue.put(item)
         return event_id
 
     async def subscribe(self, after_id: str = "$") -> AsyncIterator[tuple[str, dict[str, Any]]]:
         if after_id != "$":
-            for item in self.history:
-                if _stream_id(item[0]) > _stream_id(after_id):
-                    yield item
+            if (
+                after_id != "0-0"
+                and self.history
+                and _stream_id(after_id) < _stream_id(self.history[0][0])
+            ):
+                yield self.history[0][0], _stream_gap(after_id, self.history[0][0])
+                after_id = "$"
+            if after_id != "$":
+                for item in self.history:
+                    if _stream_id(item[0]) > _stream_id(after_id):
+                        yield item
         queue: asyncio.Queue[tuple[str, dict[str, Any]]] = asyncio.Queue()
         self._subscribers.add(queue)
         try:
@@ -82,3 +107,13 @@ class InMemoryRealtimeBroker:
 def _stream_id(value: str) -> tuple[int, int]:
     left, _, right = value.partition("-")
     return int(left or 0), int(right or 0)
+
+
+def _stream_gap(requested_cursor: str, oldest_available_cursor: str) -> dict[str, Any]:
+    return {
+        "event_type": "stream.reset_required",
+        "reason": "CURSOR_TRIMMED",
+        "requested_cursor": requested_cursor,
+        "oldest_available_cursor": oldest_available_cursor,
+        "snapshot_endpoint": "/api/v1/alerts?status=ACTIVE",
+    }

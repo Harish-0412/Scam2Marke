@@ -19,26 +19,29 @@ class InvalidCampaignTransition(ValueError):
 
 
 class CampaignStateMachine:
+    version = "campaign-stage-rules-v2"
     _transitions: dict[CampaignStage, set[CampaignStage]] = {
         CampaignStage.normal: {CampaignStage.normal, CampaignStage.early_social_seeding},
         CampaignStage.early_social_seeding: {
             CampaignStage.normal,
             CampaignStage.early_social_seeding,
             CampaignStage.coordinated_amplification,
+            CampaignStage.market_pump,
             CampaignStage.post_event,
         },
         CampaignStage.coordinated_amplification: {
             CampaignStage.coordinated_amplification,
             CampaignStage.market_pump,
+            CampaignStage.dump,
             CampaignStage.post_event,
         },
         CampaignStage.market_pump: {
             CampaignStage.market_pump,
-            CampaignStage.distribution,
+            CampaignStage.possible_distribution,
             CampaignStage.dump,
         },
-        CampaignStage.distribution: {
-            CampaignStage.distribution,
+        CampaignStage.possible_distribution: {
+            CampaignStage.possible_distribution,
             CampaignStage.dump,
             CampaignStage.post_event,
         },
@@ -56,6 +59,10 @@ class CampaignStateMachine:
         return CampaignAssessment(
             next_stage=target,
             transition_reason=reason,
+            stage_confidence=self._stage_confidence(target, score),
+            reason_codes=self._reason_codes(target, score),
+            stage_evidence_ids=[score.idempotency_key] if score.idempotency_key else [],
+            rule_version=self.version,
             alerts=self._alerts(score),
         )
 
@@ -71,6 +78,8 @@ class CampaignStateMachine:
                 return CampaignStage.early_social_seeding, "social activity crossed watch threshold"
             return current, "no campaign signal"
         if current == CampaignStage.early_social_seeding:
+            if market >= 0.60 and _RISK_RANK[score.severity] >= _RISK_RANK[RiskLevel.high]:
+                return CampaignStage.market_pump, "market evidence justified guarded stage skip"
             if coordination >= 0.55:
                 return (
                     CampaignStage.coordinated_amplification,
@@ -80,6 +89,8 @@ class CampaignStateMachine:
                 return CampaignStage.normal, "social signal decayed before corroboration"
             return current, "social seeding persists"
         if current == CampaignStage.coordinated_amplification:
+            if price_return <= -0.08:
+                return CampaignStage.dump, "sharp reversal justified guarded dump transition"
             if market >= 0.60 and _RISK_RANK[score.severity] >= _RISK_RANK[RiskLevel.high]:
                 return CampaignStage.market_pump, "market anomaly corroborated coordination"
             if score.severity == RiskLevel.normal and social < 0.20:
@@ -89,17 +100,52 @@ class CampaignStateMachine:
             if price_return <= -0.08:
                 return CampaignStage.dump, "price reversal crossed dump threshold"
             if pressure <= -0.25 or price_return < -0.02:
-                return CampaignStage.distribution, "sell pressure followed pump activity"
+                return (
+                    CampaignStage.possible_distribution,
+                    "sell-pressure proxies indicate possible distribution",
+                )
             return current, "pump conditions persist"
-        if current == CampaignStage.distribution:
+        if current == CampaignStage.possible_distribution:
             if price_return <= -0.08 or pressure <= -0.50:
-                return CampaignStage.dump, "distribution progressed to a sharp selloff"
+                return CampaignStage.dump, "possible distribution progressed to a sharp selloff"
             if score.severity == RiskLevel.normal:
-                return CampaignStage.post_event, "distribution signal decayed"
-            return current, "distribution conditions persist"
+                return CampaignStage.post_event, "possible distribution signal decayed"
+            return current, "possible distribution conditions persist"
         if current == CampaignStage.dump and score.severity == RiskLevel.normal:
             return CampaignStage.post_event, "dump activity returned to baseline"
         return current, "campaign remains in terminal monitoring"
+
+    def _stage_confidence(self, stage: CampaignStage, score: FusionResult) -> float:
+        market = score.market_anomaly_risk or 0.0
+        social = score.social_coordination_risk or 0.0
+        coordination = score.coordination_score or 0.0
+        if stage == CampaignStage.normal:
+            return max(0.0, 1.0 - score.fusion_score)
+        if stage == CampaignStage.early_social_seeding:
+            return social
+        if stage == CampaignStage.coordinated_amplification:
+            return max(social, coordination)
+        if stage in {
+            CampaignStage.market_pump,
+            CampaignStage.possible_distribution,
+            CampaignStage.dump,
+        }:
+            return max(market, score.confidence)
+        return score.confidence
+
+    def _reason_codes(self, stage: CampaignStage, score: FusionResult) -> list[str]:
+        codes: list[str] = []
+        if (score.stage_signals.get("price_return") or 0.0) >= 0.08:
+            codes.append("ABNORMAL_RETURN")
+        if (score.stage_signals.get("relative_volume") or 0.0) >= 2.5:
+            codes.append("RELATIVE_VOLUME")
+        if (score.social_coordination_risk or 0.0) >= 0.35:
+            codes.append("SOCIAL_COORDINATION")
+        if (score.stage_signals.get("buy_sell_pressure") or 0.0) <= -0.25:
+            codes.append("SELL_PRESSURE_PROXY")
+        if stage == CampaignStage.possible_distribution:
+            codes.append("PUBLIC_DATA_PROXY_ONLY")
+        return sorted(set(codes))
 
     def _alerts(self, score: FusionResult) -> list[AlertTrigger]:
         alerts: list[AlertTrigger] = []
