@@ -12,7 +12,7 @@ app = FastAPI()
 # Load a pretrained model (for demo we assume a scikit‑learn model saved at 'models/pretrained_model.joblib')
 # In production this would be the actual risk scoring model.
 try:
-    _model = joblib.load('models/pretrained_model.joblib')
+    _model = joblib.load("models/pretrained_model.joblib")
 except Exception:
     _model = None  # Fallback stub model
 
@@ -22,14 +22,18 @@ if _model is not None:
         _explainer = shap.TreeExplainer(_model)
     except Exception:
         # KernelExplainer requires a background dataset; using zeros as placeholder
-        _explainer = shap.KernelExplainer(_model.predict, np.zeros((1, len(_model.feature_names_in_))))
+        _explainer = shap.KernelExplainer(
+            _model.predict, np.zeros((1, len(_model.feature_names_in_)))
+        )
 else:
     _explainer = None
+
 
 class ExplainRequest(BaseModel):
     model_version: str
     prediction_id: str
     features: Dict[str, Any]
+
 
 class ExplainResponse(BaseModel):
     explanation_id: str
@@ -39,8 +43,10 @@ class ExplainResponse(BaseModel):
     explanation: Dict[str, float]
     raw_shap_values: Any = None
 
+
 # In‑memory store for demo – replace with persistent DB table `ai_explanations`
 _explanations: Dict[str, ExplainResponse] = {}
+
 
 def _generate_explanation(features: Dict[str, Any]):
     if _model is None or _explainer is None:
@@ -56,6 +62,7 @@ def _generate_explanation(features: Dict[str, Any]):
     explanation = {name: float(val) for name, val in zip(feature_names, shap_vals[0])}
     return explanation, shap_vals.tolist()
 
+
 @app.post("/v1/explain", response_model=ExplainResponse)
 async def explain(req: ExplainRequest):
     explanation, raw_shap = _generate_explanation(req.features)
@@ -70,11 +77,13 @@ async def explain(req: ExplainRequest):
     _explanations[resp.explanation_id] = resp
     return resp
 
+
 @app.get("/v1/explain/{explanation_id}", response_model=ExplainResponse)
 async def get_explanation(explanation_id: str):
     if explanation_id not in _explanations:
         raise HTTPException(status_code=404, detail="Explanation not found")
     return _explanations[explanation_id]
+
 
 @app.post("/v1/explain/batch", response_model=List[ExplainResponse])
 async def batch_explain(reqs: List[ExplainRequest]):
@@ -92,6 +101,7 @@ async def batch_explain(reqs: List[ExplainRequest]):
         _explanations[resp.explanation_id] = resp
         responses.append(resp)
     return responses
+
 
 @app.get("/health")
 async def health():

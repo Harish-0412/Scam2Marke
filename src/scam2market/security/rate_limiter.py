@@ -7,7 +7,7 @@ from typing import Dict
 app = FastAPI()
 
 # Simple Redis connection (assumes Redis at localhost:6379). In production configure via env vars.
-_redis = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+_redis = redis.Redis(host="localhost", port=6379, db=0, decode_responses=True)
 
 # Lua script for atomic token bucket update
 # KEYS[1] - bucket key
@@ -43,23 +43,29 @@ end
 
 _bucket_script = _redis.register_script(TOKEN_BUCKET_LUA)
 
+
 class RateLimitRequest(BaseModel):
     client_id: str  # could be IP or user identifier
     capacity: int = 100  # max tokens
     refill_rate: float = 1.0  # tokens per second
 
+
 @app.post("/v1/rate_limit/check")
 async def check_rate_limit(req: RateLimitRequest):
-    now = int(__import__('time').time())
-    result = _bucket_script(keys=[f"rate_bucket:{req.client_id}"], args=[req.capacity, req.refill_rate, now])
+    now = int(__import__("time").time())
+    result = _bucket_script(
+        keys=[f"rate_bucket:{req.client_id}"], args=[req.capacity, req.refill_rate, now]
+    )
     if result == -1:
         raise HTTPException(status_code=429, detail="Rate limit exceeded")
     return {"remaining": result}
+
 
 @app.get("/v1/rate_limit/status/{client_id}")
 async def status(client_id: str):
     data = _redis.hgetall(f"rate_bucket:{client_id}")
     return data or {"tokens": "unknown", "last_refill": "unknown"}
+
 
 @app.get("/health")
 async def health():

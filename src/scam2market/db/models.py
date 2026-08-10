@@ -388,9 +388,7 @@ class AssetBaselineModel(TimestampMixin, Base):
 
 class ModelScoreModel(Base):
     __tablename__ = "model_scores"
-    __table_args__ = (
-        UniqueConstraint("idempotency_key", name="uq_model_score_idempotency_key"),
-    )
+    __table_args__ = (UniqueConstraint("idempotency_key", name="uq_model_score_idempotency_key"),)
 
     model_score_id: Mapped[PyUUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid4, server_default=func.gen_random_uuid()
@@ -524,9 +522,7 @@ class CampaignStageHistoryModel(Base):
     reason_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     confidence: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     rule_version: Mapped[str] = mapped_column(String(64), nullable=False)
-    changed_at_event_time: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
+    changed_at_event_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     recorded_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -770,10 +766,11 @@ class ClaimVerificationModel(Base):
     retrospective_only: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     verified_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
+
 # New models for Phase 9 enhancements
 class ThreatIndicatorModel(TimestampMixin, Base):
     __tablename__ = "threat_indicators"
-    
+
     indicator_id: Mapped[str] = mapped_column(String(128), primary_key=True)
     indicator_type: Mapped[str] = mapped_column(String(64), nullable=False)
     source: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -783,12 +780,19 @@ class ThreatIndicatorModel(TimestampMixin, Base):
     first_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
+
 class ExplainabilityOutputModel(TimestampMixin, Base):
     __tablename__ = "explainability_outputs"
-    
-    output_id: Mapped[PyUUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4, server_default=func.gen_random_uuid())
-    claim_id: Mapped[PyUUID] = mapped_column(UUID(as_uuid=True), ForeignKey("claims.claim_id"), nullable=False, index=True)
+
+    output_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4, server_default=func.gen_random_uuid()
+    )
+    claim_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("claims.claim_id"), nullable=False, index=True
+    )
     model_version: Mapped[str] = mapped_column(String(64), nullable=False)
     explanation: Mapped[str] = mapped_column(Text, nullable=False)
     relevance_score: Mapped[float] = mapped_column(Float)
-    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    generated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )

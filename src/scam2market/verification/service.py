@@ -235,9 +235,7 @@ class TimeBoundedClaimVerifier:
             ),
             retrieval_metadata={
                 "alert_cutoff": alert_time.isoformat(),
-                "temporal_filter": (
-                    "first_observed_at <= alert_time for contemporaneous support"
-                ),
+                "temporal_filter": ("first_observed_at <= alert_time for contemporaneous support"),
                 "source_policy_version": self.source_policy_version,
                 "candidate_count": len(candidates),
                 "matches": [
@@ -408,9 +406,7 @@ def _structured_similarity(claim: Claim, candidate: DisclosureCandidate) -> floa
     lexical = _similarity(claim.claim_text, evidence_text)
     evidence_claim = _canonical_claim(claim.asset_id, evidence_text)
     type_match = float(evidence_claim["claim_type"] == claim.claim_type)
-    polarity_match = float(
-        evidence_claim["polarity"] == claim.canonical_payload.get("polarity")
-    )
+    polarity_match = float(evidence_claim["polarity"] == claim.canonical_payload.get("polarity"))
     claim_amounts = _string_set(claim.canonical_payload.get("amounts"))
     evidence_amounts = _string_set(evidence_claim.get("amounts"))
     amount_match = 1.0 if not claim_amounts else float(bool(claim_amounts & evidence_amounts))

@@ -62,18 +62,14 @@ class NarrativeIntelligenceService:
                         "source": post.source,
                         "platform": post.platform,
                         "language": post.language,
-                        "ingested_at": (
-                            post.ingested_at.isoformat() if post.ingested_at else None
-                        ),
+                        "ingested_at": (post.ingested_at.isoformat() if post.ingested_at else None),
                         "embedding_version": self._embedding.version,
                         "narrative_revision_id": revision_by_post[post.post_id],
                     },
                 )
             except Exception as error:
                 indexing_errors.append(f"vector index: {error!r}")
-        features = self._features.compute(
-            posts, clusters, cutoff_event_time=snapshot.window_end
-        )
+        features = self._features.compute(posts, clusters, cutoff_event_time=snapshot.window_end)
         errors = list(indexing_errors)
         component_statuses = {
             "embedding_provider_status": "HEALTHY",

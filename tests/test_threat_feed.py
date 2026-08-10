@@ -7,6 +7,7 @@ from scam2market.workers.threat_feed_worker import fetch_and_store_indicators
 from scam2market.db.models import ThreatIndicatorModel
 from scam2market.db.session import AsyncSessionLocal
 
+
 @pytest.fixture
 def mock_otx_pulse():
     return {
@@ -22,12 +23,16 @@ def mock_otx_pulse():
         ]
     }
 
+
 @pytest.mark.asyncio
 async def test_fetch_and_store_indicators(mock_otx_pulse):
     async def mock_fetch_pulses():
         yield mock_otx_pulse
-    with patch.object(OTXClient, "fetch_pulses", mock_fetch_pulses), \
-         patch.object(OTXClient, "close", AsyncMock()):
+
+    with (
+        patch.object(OTXClient, "fetch_pulses", mock_fetch_pulses),
+        patch.object(OTXClient, "close", AsyncMock()),
+    ):
         await fetch_and_store_indicators()
     # Verify DB entry
     async with AsyncSessionLocal() as session:

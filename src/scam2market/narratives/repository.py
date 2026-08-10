@@ -148,9 +148,7 @@ class SqlNarrativeRepository:
                     if cluster.revision >= narrative.current_revision:
                         narrative.current_revision = cluster.revision
                         narrative.current_revision_id = cluster.narrative_revision_id
-                revision = await session.get(
-                    NarrativeRevisionModel, cluster.narrative_revision_id
-                )
+                revision = await session.get(NarrativeRevisionModel, cluster.narrative_revision_id)
                 if revision is None:
                     session.add(
                         NarrativeRevisionModel(

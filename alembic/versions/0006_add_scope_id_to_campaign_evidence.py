@@ -9,6 +9,7 @@ down_revision = "0005_phase_8_corrections"
 branch_labels = None
 depends_on = None
 
+
 def upgrade() -> None:
     # Add scope_id column (non-nullable, default "LIVE")
     op.add_column(
@@ -32,6 +33,7 @@ def upgrade() -> None:
         "scope_id",
         server_default=None,
     )
+
 
 def downgrade() -> None:
     op.drop_index("ix_campaign_evidence_scope_id", table_name="campaign_evidence")

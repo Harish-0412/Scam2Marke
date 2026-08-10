@@ -66,8 +66,7 @@ class SqlCampaignRepository:
                 acquired = bool(
                     await session.scalar(
                         text(
-                            "SELECT pg_try_advisory_xact_lock("
-                            "hashtextextended(:campaign_key, 0))"
+                            "SELECT pg_try_advisory_xact_lock(hashtextextended(:campaign_key, 0))"
                         ),
                         {"campaign_key": campaign_key},
                     )
@@ -102,15 +101,11 @@ class SqlCampaignRepository:
                         campaign_id=campaign.campaign_id,
                         event_time=evidence.event_time,
                         evidence_type=EventType.model_fusion_scored.value,
-                        evidence_fingerprint=_fingerprint(
-                            evidence.fusion.model_dump(mode="json")
-                        ),
+                        evidence_fingerprint=_fingerprint(evidence.fusion.model_dump(mode="json")),
                         evidence_json=evidence.fusion.model_dump(mode="json"),
                     )
                 )
-                return CampaignUpdate(
-                    campaign=_campaign_record(campaign), stale_evidence=True
-                )
+                return CampaignUpdate(campaign=_campaign_record(campaign), stale_evidence=True)
             if (
                 campaign is not None
                 and evidence.event_time - campaign.last_evidence_at > self._merge_gap
@@ -208,9 +203,7 @@ class SqlCampaignRepository:
                 )
                 campaign.last_applied_feature_revision = evidence.fusion.feature_revision
                 campaign.last_applied_fusion_revision = evidence.fusion.fusion_revision
-                campaign.last_applied_enrichment_profile = (
-                    evidence.fusion.enrichment_profile.value
-                )
+                campaign.last_applied_enrichment_profile = evidence.fusion.enrichment_profile.value
                 campaign.version += 1
                 if assessment.next_stage != old_stage:
                     campaign.stage = assessment.next_stage.value
@@ -533,9 +526,7 @@ _PROFILE_PRIORITY = {
 }
 
 
-def _is_stale_campaign_evidence(
-    campaign: CampaignModel, evidence: CampaignEvidence
-) -> bool:
+def _is_stale_campaign_evidence(campaign: CampaignModel, evidence: CampaignEvidence) -> bool:
     if campaign.last_applied_evidence_cutoff is None:
         return False
     return _evaluation_order(
@@ -548,9 +539,7 @@ def _is_stale_campaign_evidence(
     )
 
 
-def _is_stale_campaign_record(
-    campaign: CampaignRecord, evidence: CampaignEvidence
-) -> bool:
+def _is_stale_campaign_record(campaign: CampaignRecord, evidence: CampaignEvidence) -> bool:
     if campaign.last_applied_evidence_cutoff is None:
         return False
     return _evaluation_order(evidence) <= (

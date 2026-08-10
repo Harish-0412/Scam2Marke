@@ -12,6 +12,7 @@ from scam2market.intelligence.otx_client import OTXClient
 
 logger = logging.getLogger(__name__)
 
+
 async def fetch_and_store_indicators() -> None:
     settings = get_settings()
     client = OTXClient()
@@ -35,6 +36,7 @@ async def fetch_and_store_indicators() -> None:
             await session.commit()
     await client.close()
 
+
 async def run() -> None:
     logger.info("Starting Threat Feed Worker")
     while True:
@@ -43,6 +45,7 @@ async def run() -> None:
         except Exception as exc:
             logger.exception("Error in threat feed worker: %s", exc)
         await asyncio.sleep(300)  # poll every 5 minutes
+
 
 def main() -> None:
     asyncio.run(run())

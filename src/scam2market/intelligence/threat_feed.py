@@ -6,14 +6,17 @@ from typing import List, Dict
 
 app = FastAPI()
 
+
 class ThreatIndicator(BaseModel):
     id: str
     type: str
     description: str
     created_at: str
 
+
 # In‑memory store for demo – replace with DB table `threat_indicators`
 _indicators: List[ThreatIndicator] = []
+
 
 async def fetch_stix_feed():
     # Stub: fetch from a mock URL; in production integrate with TAXII client
@@ -34,6 +37,7 @@ async def fetch_stix_feed():
             # In production use proper logging
             print(f"Failed to fetch STIX feed: {e}")
 
+
 @app.on_event("startup")
 async def start_feed_loop():
     # Simple periodic task every 60 seconds
@@ -41,11 +45,14 @@ async def start_feed_loop():
         while True:
             await fetch_stix_feed()
             await asyncio.sleep(60)
+
     asyncio.create_task(loop())
+
 
 @app.get("/v1/threat_indicators", response_model=List[ThreatIndicator])
 async def list_indicators():
     return _indicators
+
 
 @app.get("/health")
 async def health():

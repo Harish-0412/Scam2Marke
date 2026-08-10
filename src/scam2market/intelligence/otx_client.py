@@ -5,6 +5,7 @@ from typing import AsyncIterator, Dict, List
 
 OTX_DISCOVERY_URL = "https://otx.alienvault.com/taxii/discovery"
 
+
 class OTXClient:
     def __init__(self):
         self.api_key = os.getenv("OTX_API_KEY")
