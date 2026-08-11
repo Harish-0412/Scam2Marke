@@ -9,6 +9,8 @@ from scam2market.common.errors import register_exception_handlers
 from scam2market.common.logging import configure_logging, get_logger
 from scam2market.common.middleware import CorrelationIdMiddleware
 from scam2market.config.settings import get_settings
+from scam2market.monitoring.telemetry import PrometheusMiddleware, configure_tracing
+from scam2market.security.rate_limiter import ApiKeyMiddleware, RateLimitMiddleware
 
 logger = get_logger(__name__)
 
@@ -32,6 +34,9 @@ def create_app() -> FastAPI:
     )
 
     app.add_middleware(CorrelationIdMiddleware)
+    app.add_middleware(PrometheusMiddleware)
+    app.add_middleware(RateLimitMiddleware)
+    app.add_middleware(ApiKeyMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.allowed_origins,
@@ -42,6 +47,11 @@ def create_app() -> FastAPI:
 
     register_exception_handlers(app)
     app.include_router(api_router, prefix="/api/v1")
+    configure_tracing(
+        app,
+        service_name="scam2market-api",
+        endpoint=settings.otel_exporter_otlp_endpoint,
+    )
     return app
 
 

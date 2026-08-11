@@ -1,0 +1,32 @@
+{
+  "title": "Scam2Market Operations",
+  "uid": "scam2market-operations",
+  "schemaVersion": 41,
+  "refresh": "10s",
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "API request rate",
+      "targets": [{"expr": "sum(rate(scam2market_http_requests_total[5m])) by (path, status)"}],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+    },
+    {
+      "type": "timeseries",
+      "title": "API p95 latency",
+      "targets": [{"expr": "histogram_quantile(0.95, sum(rate(scam2market_http_request_duration_seconds_bucket[5m])) by (le, path))"}],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+    },
+    {
+      "type": "stat",
+      "title": "Dependency health",
+      "targets": [{"expr": "scam2market_dependency_healthy"}],
+      "gridPos": {"h": 7, "w": 12, "x": 0, "y": 8}
+    },
+    {
+      "type": "timeseries",
+      "title": "Rate limited requests",
+      "targets": [{"expr": "increase(scam2market_rate_limited_total[15m])"}],
+      "gridPos": {"h": 7, "w": 12, "x": 12, "y": 8}
+    }
+  ]
+}

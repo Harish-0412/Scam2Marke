@@ -1,13 +1,12 @@
-"""Phase 8 corrections: add first_observed_at to disclosures and retrospective_only to claim_verifications.
+"""Phase 8 corrections: add first_observed_at and retrospective_only columns.
 
 Revision ID: 0005_phase_8_corrections
 Revises: 0004_campaign_graph_verification
 Create Date: 2026-08-10
 """
 
-from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "0005_phase_8_corrections"

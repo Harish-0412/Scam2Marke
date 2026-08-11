@@ -1,4 +1,5 @@
 import asyncio
+from collections.abc import Mapping
 
 from scam2market.common.logging import configure_logging, get_logger
 from scam2market.config.settings import get_settings
@@ -12,6 +13,17 @@ from scam2market.streaming.consumer import EventConsumer
 from scam2market.streaming.publisher import EventPublisher
 
 logger = get_logger(__name__)
+
+
+def _verification_snapshot_id(payload: Mapping[str, object], event_id: str) -> str:
+    snapshot_id = payload.get("verification_snapshot_id")
+    if snapshot_id is not None:
+        return str(snapshot_id)
+    logger.warning(
+        "legacy_verification_event_missing_snapshot_id",
+        extra={"event_id": event_id},
+    )
+    return event_id
 
 
 async def run() -> None:
@@ -63,7 +75,9 @@ async def run() -> None:
                             if event.payload.get("graph_snapshot_id")
                             else None
                         ),
-                        verification_snapshot_id=str(event.payload["verification_snapshot_id"]),
+                        verification_snapshot_id=_verification_snapshot_id(
+                            event.payload, event.event_id
+                        ),
                     )
                 await consumer.commit()
     finally:

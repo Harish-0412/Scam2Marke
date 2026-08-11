@@ -17,6 +17,7 @@ from scam2market.intelligence.detectors import (
 )
 from scam2market.intelligence.fusion import (
     DetectionService,
+    EnrichmentProfile,
     FusionEngine,
     InMemoryScoreRepository,
     RiskLevel,
@@ -241,7 +242,8 @@ def test_graph_score_is_optional_and_strengthens_available_coordination_evidence
     assert "graph_score" in {item.name for item in baseline.missing_outputs}
     assert enriched.graph_score == 1.0
     assert enriched.fusion_score > baseline.fusion_score
-    assert enriched.model_version == "fusion-v2+graph"
+    assert enriched.model_version == "fusion-v2"
+    assert enriched.enrichment_profile == EnrichmentProfile.graph
 
 
 @pytest.mark.asyncio
@@ -257,19 +259,20 @@ async def test_enrichment_context_produces_stable_distinct_score_identity() -> N
     first = await service.score(
         snapshot,
         claim_risk=0.8,
-        enrichment_context_id="narrative-a",
+        verification_snapshot_id="narrative-a",
     )
     duplicate = await service.score(
         snapshot,
         claim_risk=0.8,
-        enrichment_context_id="narrative-a",
+        verification_snapshot_id="narrative-a",
     )
     second = await service.score(
         snapshot,
         claim_risk=0.4,
-        enrichment_context_id="narrative-b",
+        verification_snapshot_id="narrative-b",
     )
 
     assert first.model_version == duplicate.model_version
-    assert first.model_version != second.model_version
+    assert first.idempotency_key == duplicate.idempotency_key
+    assert first.idempotency_key != second.idempotency_key
     assert len(repository.results) == 2

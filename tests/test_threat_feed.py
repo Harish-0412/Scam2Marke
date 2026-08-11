@@ -1,15 +1,16 @@
-import asyncio
-import json
-from unittest.mock import AsyncMock, patch
+from collections.abc import AsyncIterator
+from unittest.mock import patch
+
 import pytest
-from scam2market.intelligence.otx_client import OTXClient
-from scam2market.workers.threat_feed_worker import fetch_and_store_indicators
+
 from scam2market.db.models import ThreatIndicatorModel
 from scam2market.db.session import AsyncSessionLocal
+from scam2market.intelligence.otx_client import JsonObject, OTXClient
+from scam2market.workers.threat_feed_worker import fetch_and_store_indicators
 
 
 @pytest.fixture
-def mock_otx_pulse():
+def mock_otx_pulse() -> JsonObject:
     return {
         "objects": [
             {
@@ -25,14 +26,14 @@ def mock_otx_pulse():
 
 
 @pytest.mark.asyncio
-async def test_fetch_and_store_indicators(mock_otx_pulse):
-    async def mock_fetch_pulses():
+async def test_fetch_and_store_indicators(
+    mock_otx_pulse: JsonObject, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def mock_fetch_pulses(_: OTXClient) -> AsyncIterator[JsonObject]:
         yield mock_otx_pulse
 
-    with (
-        patch.object(OTXClient, "fetch_pulses", mock_fetch_pulses),
-        patch.object(OTXClient, "close", AsyncMock()),
-    ):
+    monkeypatch.setenv("OTX_API_KEY", "test-api-key")
+    with patch.object(OTXClient, "fetch_pulses", mock_fetch_pulses):
         await fetch_and_store_indicators()
     # Verify DB entry
     async with AsyncSessionLocal() as session:

@@ -62,8 +62,17 @@ class ReplaySessionModel(TimestampMixin, Base):
         server_default=func.gen_random_uuid(),
     )
     dataset_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    scope_id: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
+    scenario_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    manifest_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    random_seed: Mapped[int] = mapped_column(Integer, nullable=False)
     speed_multiplier: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="CREATED")
+    virtual_clock_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    paused_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    requested_by: Mapped[str | None] = mapped_column(String(128))
+    configuration_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    failure_reason: Mapped[str | None] = mapped_column(Text)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
@@ -794,5 +803,347 @@ class ExplainabilityOutputModel(TimestampMixin, Base):
     explanation: Mapped[str] = mapped_column(Text, nullable=False)
     relevance_score: Mapped[float] = mapped_column(Float)
     generated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class EvidenceSnapshotModel(Base):
+    __tablename__ = "evidence_snapshots"
+    __table_args__ = (
+        UniqueConstraint("alert_id", "alert_version", name="uq_evidence_alert_version"),
+        UniqueConstraint("content_hash", name="uq_evidence_content_hash"),
+    )
+
+    snapshot_id: Mapped[PyUUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    alert_id: Mapped[PyUUID] = mapped_column(
+        ForeignKey("alerts.alert_id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    campaign_id: Mapped[PyUUID] = mapped_column(
+        ForeignKey("campaigns.campaign_id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    scope_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    asset_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    alert_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    evidence_cutoff: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    content_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    previous_chain_hash: Mapped[str | None] = mapped_column(String(64))
+    chain_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    completeness_score: Mapped[float] = mapped_column(Float, nullable=False)
+    completeness_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class AlertEvidenceModel(Base):
+    __tablename__ = "alert_evidence"
+    __table_args__ = (
+        UniqueConstraint(
+            "snapshot_id", "evidence_type", "evidence_id", name="uq_snapshot_evidence_ref"
+        ),
+    )
+
+    alert_evidence_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4, server_default=func.gen_random_uuid()
+    )
+    snapshot_id: Mapped[PyUUID] = mapped_column(
+        ForeignKey("evidence_snapshots.snapshot_id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    alert_id: Mapped[PyUUID] = mapped_column(
+        ForeignKey("alerts.alert_id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    evidence_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    evidence_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    event_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+
+
+class ExplanationModel(Base):
+    __tablename__ = "explanations"
+
+    explanation_id: Mapped[PyUUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    snapshot_id: Mapped[PyUUID] = mapped_column(
+        ForeignKey("evidence_snapshots.snapshot_id", ondelete="RESTRICT"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    template_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    triggered_rules_json: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False)
+    contributors_json: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False)
+    context_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    llm_summary: Mapped[str | None] = mapped_column(Text)
+    llm_status: Mapped[str] = mapped_column(String(32), nullable=False, default="NOT_REQUESTED")
+    generated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class InvestigationModel(TimestampMixin, Base):
+    __tablename__ = "investigations"
+
+    investigation_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4, server_default=func.gen_random_uuid()
+    )
+    scope_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    alert_id: Mapped[PyUUID] = mapped_column(
+        ForeignKey("alerts.alert_id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    snapshot_id: Mapped[PyUUID] = mapped_column(
+        ForeignKey("evidence_snapshots.snapshot_id", ondelete="RESTRICT"), nullable=False
+    )
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="OPEN", index=True)
+    priority: Mapped[str] = mapped_column(String(32), nullable=False, default="MEDIUM")
+    assigned_to: Mapped[str | None] = mapped_column(String(128), index=True)
+    tags_json: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+    sla_due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    disposition: Mapped[str | None] = mapped_column(String(64))
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    opened_by: Mapped[str] = mapped_column(String(128), nullable=False)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class InvestigationEventModel(Base):
+    __tablename__ = "investigation_events"
+
+    investigation_event_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4, server_default=func.gen_random_uuid()
+    )
+    investigation_id: Mapped[PyUUID] = mapped_column(
+        ForeignKey("investigations.investigation_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    event_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    actor_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    details_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class AnalystFeedbackModel(TimestampMixin, Base):
+    __tablename__ = "analyst_feedback"
+
+    feedback_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4, server_default=func.gen_random_uuid()
+    )
+    investigation_id: Mapped[PyUUID] = mapped_column(
+        ForeignKey("investigations.investigation_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    alert_id: Mapped[PyUUID] = mapped_column(
+        ForeignKey("alerts.alert_id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    snapshot_id: Mapped[PyUUID] = mapped_column(
+        ForeignKey("evidence_snapshots.snapshot_id", ondelete="RESTRICT"), nullable=False
+    )
+    analyst_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    label: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    rationale: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="PENDING")
+    adjudicated_by: Mapped[str | None] = mapped_column(String(128))
+    adjudicated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    adjudication_note: Mapped[str | None] = mapped_column(Text)
+
+
+class ReplayEvaluationModel(Base):
+    __tablename__ = "replay_evaluations"
+    __table_args__ = (
+        UniqueConstraint(
+            "replay_session_id", "evaluation_version", name="uq_replay_evaluation_version"
+        ),
+    )
+
+    evaluation_id: Mapped[PyUUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    replay_session_id: Mapped[PyUUID] = mapped_column(
+        ForeignKey("replay_sessions.replay_session_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    evaluation_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    manifest_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    metrics_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    generated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    mlflow_run_id: Mapped[str | None] = mapped_column(String(128))
+
+
+class AblationResultModel(Base):
+    __tablename__ = "ablation_results"
+    __table_args__ = (
+        UniqueConstraint("evaluation_id", "profile", name="uq_evaluation_ablation_profile"),
+    )
+
+    ablation_result_id: Mapped[PyUUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    evaluation_id: Mapped[PyUUID] = mapped_column(
+        ForeignKey("replay_evaluations.evaluation_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    profile: Mapped[str] = mapped_column(String(64), nullable=False)
+    component_set_json: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    metrics_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    contribution_delta: Mapped[float] = mapped_column(Float, nullable=False)
+    generated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class ModelArtifactModel(TimestampMixin, Base):
+    __tablename__ = "model_artifacts"
+    __table_args__ = (
+        UniqueConstraint("model_family", "model_version", name="uq_model_family_version"),
+    )
+
+    model_artifact_id: Mapped[PyUUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    model_family: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    model_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    artifact_uri: Mapped[str] = mapped_column(Text, nullable=False)
+    artifact_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    input_schema_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    training_data_hash: Mapped[str | None] = mapped_column(String(64))
+    mlflow_run_id: Mapped[str | None] = mapped_column(String(128))
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="REGISTERED")
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+
+
+class ModelAliasModel(Base):
+    __tablename__ = "model_aliases"
+
+    model_family: Mapped[str] = mapped_column(String(128), primary_key=True)
+    alias: Mapped[str] = mapped_column(String(32), primary_key=True)
+    model_artifact_id: Mapped[PyUUID] = mapped_column(
+        ForeignKey("model_artifacts.model_artifact_id", ondelete="RESTRICT"), nullable=False
+    )
+    assigned_by: Mapped[str] = mapped_column(String(128), nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    assigned_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class ShadowScoreModel(Base):
+    __tablename__ = "shadow_scores"
+    __table_args__ = (
+        UniqueConstraint(
+            "feature_window_id", "feature_revision", "model_artifact_id", name="uq_shadow_score"
+        ),
+    )
+
+    shadow_score_id: Mapped[PyUUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    replay_session_id: Mapped[PyUUID | None] = mapped_column(
+        ForeignKey("replay_sessions.replay_session_id", ondelete="SET NULL"), index=True
+    )
+    feature_window_id: Mapped[PyUUID] = mapped_column(
+        ForeignKey("feature_windows.feature_window_id", ondelete="CASCADE"), nullable=False
+    )
+    feature_revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    model_artifact_id: Mapped[PyUUID] = mapped_column(
+        ForeignKey("model_artifacts.model_artifact_id", ondelete="RESTRICT"), nullable=False
+    )
+    champion_model_score_id: Mapped[PyUUID | None] = mapped_column(
+        ForeignKey("model_scores.model_score_id", ondelete="SET NULL")
+    )
+    score: Mapped[float] = mapped_column(Float, nullable=False)
+    severity: Mapped[str] = mapped_column(String(32), nullable=False)
+    confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    controls_alerts: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    agreement: Mapped[bool | None] = mapped_column(Boolean)
+    latency_ms: Mapped[float] = mapped_column(Float, nullable=False)
+    scored_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class WatchlistModel(TimestampMixin, Base):
+    __tablename__ = "watchlists"
+    __table_args__ = (
+        UniqueConstraint("owner_id", "scope_id", "name", name="uq_watchlist_owner_scope_name"),
+    )
+
+    watchlist_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4, server_default=func.gen_random_uuid()
+    )
+    owner_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    scope_id: Mapped[str] = mapped_column(String(128), nullable=False, default="LIVE", index=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    is_default: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+
+class WatchlistAssetModel(Base):
+    __tablename__ = "watchlist_assets"
+
+    watchlist_id: Mapped[PyUUID] = mapped_column(
+        ForeignKey("watchlists.watchlist_id", ondelete="CASCADE"), primary_key=True
+    )
+    asset_id: Mapped[str] = mapped_column(
+        ForeignKey("assets.asset_id", ondelete="CASCADE"), primary_key=True
+    )
+    added_by: Mapped[str] = mapped_column(String(128), nullable=False)
+    added_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class AlertActionModel(Base):
+    __tablename__ = "alert_actions"
+
+    action_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4, server_default=func.gen_random_uuid()
+    )
+    alert_id: Mapped[PyUUID] = mapped_column(
+        ForeignKey("alerts.alert_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    action_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    actor_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    note: Mapped[str | None] = mapped_column(Text)
+    previous_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    resulting_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class PolicyProposalModel(TimestampMixin, Base):
+    __tablename__ = "policy_proposals"
+
+    proposal_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4, server_default=func.gen_random_uuid()
+    )
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="PENDING", index=True)
+    details_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    proposed_by: Mapped[str] = mapped_column(String(128), nullable=False)
+    reviewed_by: Mapped[str | None] = mapped_column(String(128))
+    review_reason: Mapped[str | None] = mapped_column(Text)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ModelDriftEventModel(Base):
+    __tablename__ = "model_drift_events"
+
+    drift_event_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4, server_default=func.gen_random_uuid()
+    )
+    model_family: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    model_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    drift_score: Mapped[float] = mapped_column(Float, nullable=False)
+    threshold: Mapped[float] = mapped_column(Float, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    details_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

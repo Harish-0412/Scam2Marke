@@ -1,0 +1,4262 @@
+{
+  "components": {
+    "schemas": {
+      "AlertActionCreate": {
+        "properties": {
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "title": "AlertActionCreate",
+        "type": "object"
+      },
+      "AlertActionResponse": {
+        "properties": {
+          "action_id": {
+            "format": "uuid",
+            "title": "Action Id",
+            "type": "string"
+          },
+          "action_type": {
+            "title": "Action Type",
+            "type": "string"
+          },
+          "actor_id": {
+            "title": "Actor Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "previous_status": {
+            "title": "Previous Status",
+            "type": "string"
+          },
+          "resulting_status": {
+            "title": "Resulting Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id",
+          "action_type",
+          "actor_id",
+          "note",
+          "previous_status",
+          "resulting_status",
+          "created_at"
+        ],
+        "title": "AlertActionResponse",
+        "type": "object"
+      },
+      "AlertDetailResponse": {
+        "properties": {
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/AlertActionResponse"
+            },
+            "title": "Actions",
+            "type": "array"
+          },
+          "alert_id": {
+            "format": "uuid",
+            "title": "Alert Id",
+            "type": "string"
+          },
+          "alert_type": {
+            "title": "Alert Type",
+            "type": "string"
+          },
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "first_triggered_at": {
+            "format": "date-time",
+            "title": "First Triggered At",
+            "type": "string"
+          },
+          "last_triggered_at": {
+            "format": "date-time",
+            "title": "Last Triggered At",
+            "type": "string"
+          },
+          "occurrence_count": {
+            "title": "Occurrence Count",
+            "type": "integer"
+          },
+          "severity": {
+            "title": "Severity",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "alert_id",
+          "campaign_id",
+          "alert_type",
+          "severity",
+          "status",
+          "first_triggered_at",
+          "last_triggered_at",
+          "occurrence_count",
+          "version",
+          "actions"
+        ],
+        "title": "AlertDetailResponse",
+        "type": "object"
+      },
+      "AlertResponse": {
+        "properties": {
+          "alert_id": {
+            "format": "uuid",
+            "title": "Alert Id",
+            "type": "string"
+          },
+          "alert_type": {
+            "title": "Alert Type",
+            "type": "string"
+          },
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "first_triggered_at": {
+            "format": "date-time",
+            "title": "First Triggered At",
+            "type": "string"
+          },
+          "last_triggered_at": {
+            "format": "date-time",
+            "title": "Last Triggered At",
+            "type": "string"
+          },
+          "occurrence_count": {
+            "title": "Occurrence Count",
+            "type": "integer"
+          },
+          "severity": {
+            "title": "Severity",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "alert_id",
+          "campaign_id",
+          "alert_type",
+          "severity",
+          "status",
+          "first_triggered_at",
+          "last_triggered_at",
+          "occurrence_count",
+          "version"
+        ],
+        "title": "AlertResponse",
+        "type": "object"
+      },
+      "AliasAssignment": {
+        "properties": {
+          "model_artifact_id": {
+            "format": "uuid",
+            "title": "Model Artifact Id",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 2000,
+            "minLength": 5,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "model_artifact_id",
+          "reason"
+        ],
+        "title": "AliasAssignment",
+        "type": "object"
+      },
+      "AssetOverviewResponse": {
+        "properties": {
+          "active_campaign": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CampaignResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "asset": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Asset",
+            "type": "object"
+          },
+          "latest_score": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScoreResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scope_id": {
+            "title": "Scope Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "asset",
+          "scope_id",
+          "latest_score",
+          "active_campaign"
+        ],
+        "title": "AssetOverviewResponse",
+        "type": "object"
+      },
+      "CampaignDetailResponse": {
+        "properties": {
+          "alerts": {
+            "items": {
+              "$ref": "#/components/schemas/AlertResponse"
+            },
+            "title": "Alerts",
+            "type": "array"
+          },
+          "asset_id": {
+            "title": "Asset Id",
+            "type": "string"
+          },
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "first_evidence_at": {
+            "format": "date-time",
+            "title": "First Evidence At",
+            "type": "string"
+          },
+          "last_evidence_at": {
+            "format": "date-time",
+            "title": "Last Evidence At",
+            "type": "string"
+          },
+          "max_severity": {
+            "title": "Max Severity",
+            "type": "string"
+          },
+          "scope_id": {
+            "title": "Scope Id",
+            "type": "string"
+          },
+          "stage": {
+            "title": "Stage",
+            "type": "string"
+          },
+          "stage_confidence": {
+            "title": "Stage Confidence",
+            "type": "number"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "campaign_id",
+          "scope_id",
+          "asset_id",
+          "stage",
+          "stage_confidence",
+          "status",
+          "max_severity",
+          "first_evidence_at",
+          "last_evidence_at",
+          "version",
+          "alerts"
+        ],
+        "title": "CampaignDetailResponse",
+        "type": "object"
+      },
+      "CampaignResponse": {
+        "properties": {
+          "asset_id": {
+            "title": "Asset Id",
+            "type": "string"
+          },
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "first_evidence_at": {
+            "format": "date-time",
+            "title": "First Evidence At",
+            "type": "string"
+          },
+          "last_evidence_at": {
+            "format": "date-time",
+            "title": "Last Evidence At",
+            "type": "string"
+          },
+          "max_severity": {
+            "title": "Max Severity",
+            "type": "string"
+          },
+          "scope_id": {
+            "title": "Scope Id",
+            "type": "string"
+          },
+          "stage": {
+            "title": "Stage",
+            "type": "string"
+          },
+          "stage_confidence": {
+            "title": "Stage Confidence",
+            "type": "number"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "campaign_id",
+          "scope_id",
+          "asset_id",
+          "stage",
+          "stage_confidence",
+          "status",
+          "max_severity",
+          "first_evidence_at",
+          "last_evidence_at",
+          "version"
+        ],
+        "title": "CampaignResponse",
+        "type": "object"
+      },
+      "ConfigResponse": {
+        "properties": {
+          "api_contract": {
+            "title": "Api Contract",
+            "type": "string"
+          },
+          "architecture": {
+            "title": "Architecture",
+            "type": "string"
+          },
+          "phase": {
+            "title": "Phase",
+            "type": "string"
+          },
+          "topics": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Topics",
+            "type": "array"
+          }
+        },
+        "required": [
+          "topics",
+          "phase",
+          "architecture",
+          "api_contract"
+        ],
+        "title": "ConfigResponse",
+        "type": "object"
+      },
+      "DependencyStatus": {
+        "properties": {
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "latency_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency Ms"
+          },
+          "required": {
+            "title": "Required",
+            "type": "boolean"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "required"
+        ],
+        "title": "DependencyStatus",
+        "type": "object"
+      },
+      "DriftEventCreate": {
+        "properties": {
+          "details": {
+            "additionalProperties": true,
+            "title": "Details",
+            "type": "object"
+          },
+          "drift_score": {
+            "minimum": 0.0,
+            "title": "Drift Score",
+            "type": "number"
+          },
+          "model_family": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Model Family",
+            "type": "string"
+          },
+          "model_version": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Model Version",
+            "type": "string"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "title": "Observed At",
+            "type": "string"
+          },
+          "threshold": {
+            "exclusiveMinimum": 0.0,
+            "title": "Threshold",
+            "type": "number"
+          }
+        },
+        "required": [
+          "model_family",
+          "model_version",
+          "drift_score",
+          "threshold"
+        ],
+        "title": "DriftEventCreate",
+        "type": "object"
+      },
+      "FeedbackAdjudication": {
+        "properties": {
+          "accepted": {
+            "title": "Accepted",
+            "type": "boolean"
+          },
+          "note": {
+            "maxLength": 4000,
+            "minLength": 3,
+            "title": "Note",
+            "type": "string"
+          }
+        },
+        "required": [
+          "accepted",
+          "note"
+        ],
+        "title": "FeedbackAdjudication",
+        "type": "object"
+      },
+      "FeedbackCreate": {
+        "properties": {
+          "confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "label": {
+            "$ref": "#/components/schemas/FeedbackLabel"
+          },
+          "rationale": {
+            "maxLength": 4000,
+            "minLength": 10,
+            "title": "Rationale",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "confidence",
+          "rationale"
+        ],
+        "title": "FeedbackCreate",
+        "type": "object"
+      },
+      "FeedbackLabel": {
+        "enum": [
+          "TRUE_POSITIVE",
+          "FALSE_POSITIVE",
+          "LEGITIMATE_EVENT",
+          "INSUFFICIENT_EVIDENCE",
+          "NEEDS_MONITORING"
+        ],
+        "title": "FeedbackLabel",
+        "type": "string"
+      },
+      "GraphResponse": {
+        "properties": {
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "features": {
+            "additionalProperties": true,
+            "title": "Features",
+            "type": "object"
+          },
+          "graph_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Graph Score"
+          },
+          "graph_snapshot_id": {
+            "format": "uuid",
+            "title": "Graph Snapshot Id",
+            "type": "string"
+          },
+          "node_count": {
+            "title": "Node Count",
+            "type": "integer"
+          },
+          "projection_status": {
+            "title": "Projection Status",
+            "type": "string"
+          },
+          "relationship_count": {
+            "title": "Relationship Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "graph_snapshot_id",
+          "campaign_id",
+          "projection_status",
+          "node_count",
+          "relationship_count",
+          "features",
+          "graph_score"
+        ],
+        "title": "GraphResponse",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HealthResponse": {
+        "properties": {
+          "environment": {
+            "title": "Environment",
+            "type": "string"
+          },
+          "service": {
+            "title": "Service",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "service",
+          "environment",
+          "version"
+        ],
+        "title": "HealthResponse",
+        "type": "object"
+      },
+      "InvestigationCreate": {
+        "properties": {
+          "alert_id": {
+            "format": "uuid",
+            "title": "Alert Id",
+            "type": "string"
+          },
+          "assigned_to": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assigned To"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/InvestigationPriority",
+            "default": "MEDIUM"
+          },
+          "sla_hours": {
+            "default": 24,
+            "maximum": 720.0,
+            "minimum": 1.0,
+            "title": "Sla Hours",
+            "type": "integer"
+          },
+          "snapshot_id": {
+            "format": "uuid",
+            "title": "Snapshot Id",
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Tags",
+            "type": "array"
+          },
+          "title": {
+            "maxLength": 255,
+            "minLength": 3,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "alert_id",
+          "snapshot_id",
+          "title"
+        ],
+        "title": "InvestigationCreate",
+        "type": "object"
+      },
+      "InvestigationEventCreate": {
+        "properties": {
+          "details": {
+            "additionalProperties": true,
+            "title": "Details",
+            "type": "object"
+          },
+          "event_type": {
+            "maxLength": 64,
+            "minLength": 2,
+            "title": "Event Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_type"
+        ],
+        "title": "InvestigationEventCreate",
+        "type": "object"
+      },
+      "InvestigationPriority": {
+        "enum": [
+          "LOW",
+          "MEDIUM",
+          "HIGH",
+          "URGENT"
+        ],
+        "title": "InvestigationPriority",
+        "type": "string"
+      },
+      "InvestigationStatus": {
+        "enum": [
+          "OPEN",
+          "TRIAGE",
+          "INVESTIGATING",
+          "AWAITING_REVIEW",
+          "CLOSED"
+        ],
+        "title": "InvestigationStatus",
+        "type": "string"
+      },
+      "InvestigationUpdate": {
+        "properties": {
+          "assigned_to": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assigned To"
+          },
+          "disposition": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disposition"
+          },
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InvestigationPriority"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InvestigationStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 20,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tags"
+          }
+        },
+        "required": [
+          "expected_version"
+        ],
+        "title": "InvestigationUpdate",
+        "type": "object"
+      },
+      "ModelArtifactCreate": {
+        "properties": {
+          "artifact_hash": {
+            "pattern": "^[a-fA-F0-9]{64}$",
+            "title": "Artifact Hash",
+            "type": "string"
+          },
+          "artifact_uri": {
+            "maxLength": 2000,
+            "minLength": 3,
+            "title": "Artifact Uri",
+            "type": "string"
+          },
+          "input_schema_hash": {
+            "pattern": "^[a-fA-F0-9]{64}$",
+            "title": "Input Schema Hash",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "mlflow_run_id": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mlflow Run Id"
+          },
+          "model_family": {
+            "maxLength": 128,
+            "minLength": 2,
+            "title": "Model Family",
+            "type": "string"
+          },
+          "model_version": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Model Version",
+            "type": "string"
+          },
+          "training_data_hash": {
+            "anyOf": [
+              {
+                "pattern": "^[a-fA-F0-9]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Training Data Hash"
+          }
+        },
+        "required": [
+          "model_family",
+          "model_version",
+          "artifact_uri",
+          "artifact_hash",
+          "input_schema_hash"
+        ],
+        "title": "ModelArtifactCreate",
+        "type": "object"
+      },
+      "NarrativeResponse": {
+        "properties": {
+          "asset_id": {
+            "title": "Asset Id",
+            "type": "string"
+          },
+          "embedding_version": {
+            "title": "Embedding Version",
+            "type": "string"
+          },
+          "first_seen": {
+            "format": "date-time",
+            "title": "First Seen",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "last_seen": {
+            "format": "date-time",
+            "title": "Last Seen",
+            "type": "string"
+          },
+          "narrative_id": {
+            "format": "uuid",
+            "title": "Narrative Id",
+            "type": "string"
+          },
+          "post_count": {
+            "title": "Post Count",
+            "type": "integer"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "scope_id": {
+            "title": "Scope Id",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "unique_author_count": {
+            "title": "Unique Author Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "narrative_id",
+          "scope_id",
+          "asset_id",
+          "label",
+          "summary",
+          "post_count",
+          "unique_author_count",
+          "first_seen",
+          "last_seen",
+          "revision",
+          "embedding_version"
+        ],
+        "title": "NarrativeResponse",
+        "type": "object"
+      },
+      "PolicyDecision": {
+        "properties": {
+          "reason": {
+            "maxLength": 2000,
+            "minLength": 5,
+            "title": "Reason",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "APPROVED",
+              "REJECTED"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "reason"
+        ],
+        "title": "PolicyDecision",
+        "type": "object"
+      },
+      "PolicyProposalCreate": {
+        "properties": {
+          "description": {
+            "maxLength": 4000,
+            "minLength": 5,
+            "title": "Description",
+            "type": "string"
+          },
+          "details": {
+            "additionalProperties": true,
+            "title": "Details",
+            "type": "object"
+          },
+          "name": {
+            "maxLength": 128,
+            "minLength": 2,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "description"
+        ],
+        "title": "PolicyProposalCreate",
+        "type": "object"
+      },
+      "ReadinessResponse": {
+        "properties": {
+          "dependencies": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/DependencyStatus"
+            },
+            "title": "Dependencies",
+            "type": "object"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "telemetry": {
+            "additionalProperties": true,
+            "title": "Telemetry",
+            "type": "object"
+          }
+        },
+        "required": [
+          "status",
+          "dependencies",
+          "telemetry"
+        ],
+        "title": "ReadinessResponse",
+        "type": "object"
+      },
+      "ReplayCreate": {
+        "properties": {
+          "configuration": {
+            "additionalProperties": true,
+            "title": "Configuration",
+            "type": "object"
+          },
+          "random_seed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Random Seed"
+          },
+          "scenario_id": {
+            "default": "synthetic-pump-v1",
+            "title": "Scenario Id",
+            "type": "string"
+          },
+          "speed_multiplier": {
+            "default": 0.0,
+            "maximum": 10000.0,
+            "minimum": 0.0,
+            "title": "Speed Multiplier",
+            "type": "number"
+          }
+        },
+        "title": "ReplayCreate",
+        "type": "object"
+      },
+      "ScoreResponse": {
+        "properties": {
+          "asset_id": {
+            "title": "Asset Id",
+            "type": "string"
+          },
+          "claim_risk": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Claim Risk"
+          },
+          "confidence": {
+            "title": "Confidence",
+            "type": "number"
+          },
+          "coordination_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coordination Score"
+          },
+          "evidence_cutoff": {
+            "format": "date-time",
+            "title": "Evidence Cutoff",
+            "type": "string"
+          },
+          "fusion_score": {
+            "title": "Fusion Score",
+            "type": "number"
+          },
+          "graph_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Graph Score"
+          },
+          "market_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Market Score"
+          },
+          "model_score_id": {
+            "format": "uuid",
+            "title": "Model Score Id",
+            "type": "string"
+          },
+          "model_version": {
+            "title": "Model Version",
+            "type": "string"
+          },
+          "severity": {
+            "title": "Severity",
+            "type": "string"
+          },
+          "social_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Social Score"
+          },
+          "temporal_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temporal Score"
+          }
+        },
+        "required": [
+          "model_score_id",
+          "asset_id",
+          "fusion_score",
+          "confidence",
+          "severity",
+          "market_score",
+          "social_score",
+          "coordination_score",
+          "temporal_score",
+          "graph_score",
+          "claim_risk",
+          "evidence_cutoff",
+          "model_version"
+        ],
+        "title": "ScoreResponse",
+        "type": "object"
+      },
+      "ShadowScoreRequest": {
+        "properties": {
+          "feature_revision": {
+            "minimum": 1.0,
+            "title": "Feature Revision",
+            "type": "integer"
+          },
+          "feature_window_id": {
+            "format": "uuid",
+            "title": "Feature Window Id",
+            "type": "string"
+          },
+          "latency_ms": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Latency Ms",
+            "type": "number"
+          },
+          "model_artifact_id": {
+            "format": "uuid",
+            "title": "Model Artifact Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "model_artifact_id",
+          "feature_window_id",
+          "feature_revision"
+        ],
+        "title": "ShadowScoreRequest",
+        "type": "object"
+      },
+      "SourceHealthResponse": {
+        "properties": {
+          "disclosure_index_age_s": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disclosure Index Age S"
+          },
+          "graph_last_updated_s": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Graph Last Updated S"
+          },
+          "market_data_age_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Market Data Age Ms"
+          },
+          "social_data_age_s": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Social Data Age S"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "threat_feed_status": {
+            "title": "Threat Feed Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "market_data_age_ms",
+          "social_data_age_s",
+          "graph_last_updated_s",
+          "disclosure_index_age_s",
+          "threat_feed_status",
+          "status"
+        ],
+        "title": "SourceHealthResponse",
+        "type": "object"
+      },
+      "TimelineEventResponse": {
+        "properties": {
+          "data": {
+            "additionalProperties": true,
+            "title": "Data",
+            "type": "object"
+          },
+          "event_time": {
+            "format": "date-time",
+            "title": "Event Time",
+            "type": "string"
+          },
+          "event_type": {
+            "title": "Event Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_type",
+          "event_time",
+          "data"
+        ],
+        "title": "TimelineEventResponse",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "WatchlistAssetCreate": {
+        "properties": {
+          "asset_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Asset Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "asset_id"
+        ],
+        "title": "WatchlistAssetCreate",
+        "type": "object"
+      },
+      "WatchlistCreate": {
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "is_default": {
+            "default": false,
+            "title": "Is Default",
+            "type": "boolean"
+          },
+          "name": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "scope_id": {
+            "default": "LIVE",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Scope Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "WatchlistCreate",
+        "type": "object"
+      },
+      "WatchlistResponse": {
+        "properties": {
+          "asset_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Asset Ids",
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "is_default": {
+            "title": "Is Default",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "owner_id": {
+            "title": "Owner Id",
+            "type": "string"
+          },
+          "scope_id": {
+            "title": "Scope Id",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "watchlist_id": {
+            "format": "uuid",
+            "title": "Watchlist Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "watchlist_id",
+          "owner_id",
+          "scope_id",
+          "name",
+          "description",
+          "is_default",
+          "asset_ids",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "WatchlistResponse",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Event-time-aware pump-and-dump intelligence backend.",
+    "title": "Scam2Market Backend",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/alerts": {
+      "get": {
+        "operationId": "alerts_api_v1_alerts_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campaign_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Campaign Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scope_id",
+            "required": false,
+            "schema": {
+              "default": "LIVE",
+              "title": "Scope Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "default": "ACTIVE",
+              "title": "Status",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Alerts Api V1 Alerts Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Alerts",
+        "tags": [
+          "campaigns"
+        ]
+      }
+    },
+    "/api/v1/alerts/{alert_id}": {
+      "get": {
+        "operationId": "alert_detail_api_v1_alerts__alert_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "alert_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Alert Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Alert Detail",
+        "tags": [
+          "analyst"
+        ]
+      }
+    },
+    "/api/v1/alerts/{alert_id}/acknowledge": {
+      "post": {
+        "operationId": "acknowledge_alert_api_v1_alerts__alert_id__acknowledge_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "alert_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Alert Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Actor-ID",
+            "required": true,
+            "schema": {
+              "title": "X-Actor-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AlertActionCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Acknowledge Alert",
+        "tags": [
+          "analyst"
+        ]
+      }
+    },
+    "/api/v1/alerts/{alert_id}/evidence": {
+      "get": {
+        "operationId": "alert_evidence_api_v1_alerts__alert_id__evidence_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "alert_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Alert Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "version",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Alert Evidence Api V1 Alerts  Alert Id  Evidence Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Alert Evidence",
+        "tags": [
+          "evidence",
+          "investigations"
+        ]
+      }
+    },
+    "/api/v1/alerts/{alert_id}/explanation": {
+      "get": {
+        "operationId": "alert_explanation_api_v1_alerts__alert_id__explanation_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "alert_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Alert Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Alert Explanation Api V1 Alerts  Alert Id  Explanation Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Alert Explanation",
+        "tags": [
+          "evidence",
+          "investigations"
+        ]
+      }
+    },
+    "/api/v1/assets/{asset_id}/narratives": {
+      "get": {
+        "operationId": "asset_narratives_api_v1_assets__asset_id__narratives_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "title": "Asset Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scope_id",
+            "required": false,
+            "schema": {
+              "default": "LIVE",
+              "title": "Scope Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/NarrativeResponse"
+                  },
+                  "title": "Response Asset Narratives Api V1 Assets  Asset Id  Narratives Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Asset Narratives",
+        "tags": [
+          "analyst"
+        ]
+      }
+    },
+    "/api/v1/assets/{asset_id}/overview": {
+      "get": {
+        "operationId": "asset_overview_api_v1_assets__asset_id__overview_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "title": "Asset Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scope_id",
+            "required": false,
+            "schema": {
+              "default": "LIVE",
+              "title": "Scope Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetOverviewResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Asset Overview",
+        "tags": [
+          "analyst"
+        ]
+      }
+    },
+    "/api/v1/assets/{asset_id}/scores": {
+      "get": {
+        "operationId": "asset_scores_api_v1_assets__asset_id__scores_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "title": "Asset Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ScoreResponse"
+                  },
+                  "title": "Response Asset Scores Api V1 Assets  Asset Id  Scores Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Asset Scores",
+        "tags": [
+          "analyst"
+        ]
+      }
+    },
+    "/api/v1/assets/{asset_id}/timeline": {
+      "get": {
+        "operationId": "asset_timeline_api_v1_assets__asset_id__timeline_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "title": "Asset Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scope_id",
+            "required": false,
+            "schema": {
+              "default": "LIVE",
+              "title": "Scope Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TimelineEventResponse"
+                  },
+                  "title": "Response Asset Timeline Api V1 Assets  Asset Id  Timeline Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Asset Timeline",
+        "tags": [
+          "analyst"
+        ]
+      }
+    },
+    "/api/v1/campaigns": {
+      "get": {
+        "operationId": "campaigns_api_v1_campaigns_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "asset_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Asset Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scope_id",
+            "required": false,
+            "schema": {
+              "default": "LIVE",
+              "title": "Scope Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Campaigns Api V1 Campaigns Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Campaigns",
+        "tags": [
+          "campaigns"
+        ]
+      }
+    },
+    "/api/v1/campaigns/{campaign_id}": {
+      "get": {
+        "operationId": "campaign_detail_api_v1_campaigns__campaign_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campaign_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Campaign Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Campaign Detail",
+        "tags": [
+          "analyst"
+        ]
+      }
+    },
+    "/api/v1/campaigns/{campaign_id}/evidence": {
+      "get": {
+        "operationId": "campaign_evidence_api_v1_campaigns__campaign_id__evidence_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campaign_id",
+            "required": true,
+            "schema": {
+              "title": "Campaign Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Campaign Evidence Api V1 Campaigns  Campaign Id  Evidence Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Campaign Evidence",
+        "tags": [
+          "campaigns"
+        ]
+      }
+    },
+    "/api/v1/campaigns/{campaign_id}/graph": {
+      "get": {
+        "operationId": "campaign_graph_api_v1_campaigns__campaign_id__graph_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campaign_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Campaign Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GraphResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Campaign Graph",
+        "tags": [
+          "analyst"
+        ]
+      }
+    },
+    "/api/v1/config": {
+      "get": {
+        "operationId": "config_api_v1_config_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Config",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/api/v1/evidence/{snapshot_id}/manifest": {
+      "get": {
+        "operationId": "evidence_manifest_api_v1_evidence__snapshot_id__manifest_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "snapshot_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Snapshot Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Actor-ID",
+            "required": true,
+            "schema": {
+              "title": "X-Actor-Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Access-Reason",
+            "required": true,
+            "schema": {
+              "minLength": 5,
+              "title": "X-Access-Reason",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Evidence Manifest Api V1 Evidence  Snapshot Id  Manifest Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Evidence Manifest",
+        "tags": [
+          "evidence",
+          "investigations"
+        ]
+      }
+    },
+    "/api/v1/features/assets/{asset_id}/latest": {
+      "get": {
+        "operationId": "latest_features_api_v1_features_assets__asset_id__latest_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "title": "Asset Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "interval_seconds",
+            "required": false,
+            "schema": {
+              "default": 60,
+              "exclusiveMinimum": 0,
+              "title": "Interval Seconds",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scope_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Scope Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Latest Features Api V1 Features Assets  Asset Id  Latest Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Latest Features",
+        "tags": [
+          "surveillance"
+        ]
+      }
+    },
+    "/api/v1/feedback/{feedback_id}/adjudicate": {
+      "post": {
+        "operationId": "adjudicate_feedback_api_v1_feedback__feedback_id__adjudicate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "feedback_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Feedback Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Actor-ID",
+            "required": true,
+            "schema": {
+              "title": "X-Actor-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeedbackAdjudication"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Adjudicate Feedback Api V1 Feedback  Feedback Id  Adjudicate Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Adjudicate Feedback",
+        "tags": [
+          "evidence",
+          "investigations"
+        ]
+      }
+    },
+    "/api/v1/health": {
+      "get": {
+        "operationId": "health_api_v1_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/api/v1/intelligence/assets/{asset_id}/score": {
+      "get": {
+        "operationId": "latest_score_api_v1_intelligence_assets__asset_id__score_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "title": "Asset Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scope_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Scope Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Latest Score Api V1 Intelligence Assets  Asset Id  Score Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Latest Score",
+        "tags": [
+          "surveillance"
+        ]
+      }
+    },
+    "/api/v1/investigations": {
+      "get": {
+        "operationId": "list_investigations_api_v1_investigations_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "scope_id",
+            "required": false,
+            "schema": {
+              "default": "LIVE",
+              "title": "Scope Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/InvestigationStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "assigned_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Assigned To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "overdue_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Overdue Only",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Investigations Api V1 Investigations Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Investigations",
+        "tags": [
+          "evidence",
+          "investigations"
+        ]
+      },
+      "post": {
+        "operationId": "create_investigation_api_v1_investigations_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Actor-ID",
+            "required": true,
+            "schema": {
+              "title": "X-Actor-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvestigationCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Investigation Api V1 Investigations Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Investigation",
+        "tags": [
+          "evidence",
+          "investigations"
+        ]
+      }
+    },
+    "/api/v1/investigations/{investigation_id}": {
+      "patch": {
+        "operationId": "update_investigation_api_v1_investigations__investigation_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "investigation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Investigation Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Actor-ID",
+            "required": true,
+            "schema": {
+              "title": "X-Actor-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvestigationUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Update Investigation Api V1 Investigations  Investigation Id  Patch",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Investigation",
+        "tags": [
+          "evidence",
+          "investigations"
+        ]
+      }
+    },
+    "/api/v1/investigations/{investigation_id}/events": {
+      "post": {
+        "operationId": "add_investigation_event_api_v1_investigations__investigation_id__events_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "investigation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Investigation Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Actor-ID",
+            "required": true,
+            "schema": {
+              "title": "X-Actor-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvestigationEventCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Add Investigation Event Api V1 Investigations  Investigation Id  Events Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Investigation Event",
+        "tags": [
+          "evidence",
+          "investigations"
+        ]
+      }
+    },
+    "/api/v1/investigations/{investigation_id}/feedback": {
+      "post": {
+        "operationId": "add_feedback_api_v1_investigations__investigation_id__feedback_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "investigation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Investigation Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Actor-ID",
+            "required": true,
+            "schema": {
+              "title": "X-Actor-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeedbackCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Add Feedback Api V1 Investigations  Investigation Id  Feedback Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Feedback",
+        "tags": [
+          "evidence",
+          "investigations"
+        ]
+      }
+    },
+    "/api/v1/market/assets/{asset_id}/latest": {
+      "get": {
+        "operationId": "latest_market_state_api_v1_market_assets__asset_id__latest_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "title": "Asset Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Latest Market State Api V1 Market Assets  Asset Id  Latest Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Latest Market State",
+        "tags": [
+          "surveillance"
+        ]
+      }
+    },
+    "/api/v1/market/sources/{source}/{asset_id}/health": {
+      "get": {
+        "operationId": "market_source_health_api_v1_market_sources__source___asset_id__health_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source",
+            "required": true,
+            "schema": {
+              "title": "Source",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "title": "Asset Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Market Source Health Api V1 Market Sources  Source   Asset Id  Health Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Market Source Health",
+        "tags": [
+          "surveillance"
+        ]
+      }
+    },
+    "/api/v1/models/artifacts": {
+      "post": {
+        "operationId": "register_model_artifact_api_v1_models_artifacts_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Actor-ID",
+            "required": true,
+            "schema": {
+              "title": "X-Actor-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelArtifactCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Register Model Artifact Api V1 Models Artifacts Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Register Model Artifact",
+        "tags": [
+          "replays",
+          "evaluation",
+          "models"
+        ]
+      }
+    },
+    "/api/v1/models/{model_family}/aliases/{alias}": {
+      "put": {
+        "operationId": "assign_model_alias_api_v1_models__model_family__aliases__alias__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "model_family",
+            "required": true,
+            "schema": {
+              "title": "Model Family",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "alias",
+            "required": true,
+            "schema": {
+              "title": "Alias",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Actor-ID",
+            "required": true,
+            "schema": {
+              "title": "X-Actor-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AliasAssignment"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Assign Model Alias Api V1 Models  Model Family  Aliases  Alias  Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Assign Model Alias",
+        "tags": [
+          "replays",
+          "evaluation",
+          "models"
+        ]
+      }
+    },
+    "/api/v1/narratives/{narrative_id}": {
+      "get": {
+        "operationId": "narrative_detail_api_v1_narratives__narrative_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "narrative_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Narrative Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NarrativeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Narrative Detail",
+        "tags": [
+          "analyst"
+        ]
+      }
+    },
+    "/api/v1/operations/model-drift": {
+      "get": {
+        "operationId": "list_model_drift_api_v1_operations_model_drift_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "model_family",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Model Family"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Model Drift Api V1 Operations Model Drift Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Model Drift",
+        "tags": [
+          "operations"
+        ]
+      },
+      "post": {
+        "operationId": "report_model_drift_api_v1_operations_model_drift_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DriftEventCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Report Model Drift Api V1 Operations Model Drift Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Report Model Drift",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/api/v1/operations/policy-proposals": {
+      "get": {
+        "operationId": "list_policy_proposals_api_v1_operations_policy_proposals_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Policy Proposals Api V1 Operations Policy Proposals Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Policy Proposals",
+        "tags": [
+          "operations"
+        ]
+      },
+      "post": {
+        "operationId": "create_policy_proposal_api_v1_operations_policy_proposals_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Actor-ID",
+            "required": true,
+            "schema": {
+              "title": "X-Actor-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyProposalCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Policy Proposal Api V1 Operations Policy Proposals Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Policy Proposal",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/api/v1/operations/policy-proposals/{proposal_id}/decision": {
+      "post": {
+        "operationId": "decide_policy_proposal_api_v1_operations_policy_proposals__proposal_id__decision_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "proposal_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Proposal Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Actor-ID",
+            "required": true,
+            "schema": {
+              "title": "X-Actor-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyDecision"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Decide Policy Proposal Api V1 Operations Policy Proposals  Proposal Id  Decision Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Decide Policy Proposal",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/api/v1/ready": {
+      "get": {
+        "operationId": "readiness_api_v1_ready_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Readiness",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/api/v1/replays": {
+      "get": {
+        "operationId": "list_replays_api_v1_replays_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Replays Api V1 Replays Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Replays",
+        "tags": [
+          "replays",
+          "evaluation",
+          "models"
+        ]
+      },
+      "post": {
+        "operationId": "create_replay_api_v1_replays_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Actor-ID",
+            "required": true,
+            "schema": {
+              "title": "X-Actor-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplayCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Replay Api V1 Replays Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Replay",
+        "tags": [
+          "replays",
+          "evaluation",
+          "models"
+        ]
+      }
+    },
+    "/api/v1/replays/{replay_session_id}": {
+      "get": {
+        "operationId": "get_replay_api_v1_replays__replay_session_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "replay_session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Replay Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Replay Api V1 Replays  Replay Session Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Replay",
+        "tags": [
+          "replays",
+          "evaluation",
+          "models"
+        ]
+      }
+    },
+    "/api/v1/replays/{replay_session_id}/evaluate": {
+      "post": {
+        "operationId": "evaluate_replay_api_v1_replays__replay_session_id__evaluate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "replay_session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Replay Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Evaluate Replay Api V1 Replays  Replay Session Id  Evaluate Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Evaluate Replay",
+        "tags": [
+          "replays",
+          "evaluation",
+          "models"
+        ]
+      }
+    },
+    "/api/v1/replays/{replay_session_id}/pause": {
+      "post": {
+        "operationId": "pause_replay_api_v1_replays__replay_session_id__pause_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "replay_session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Replay Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Actor-ID",
+            "required": true,
+            "schema": {
+              "title": "X-Actor-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Pause Replay Api V1 Replays  Replay Session Id  Pause Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Pause Replay",
+        "tags": [
+          "replays",
+          "evaluation",
+          "models"
+        ]
+      }
+    },
+    "/api/v1/replays/{replay_session_id}/start": {
+      "post": {
+        "operationId": "start_replay_api_v1_replays__replay_session_id__start_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "replay_session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Replay Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Actor-ID",
+            "required": true,
+            "schema": {
+              "title": "X-Actor-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Start Replay Api V1 Replays  Replay Session Id  Start Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Start Replay",
+        "tags": [
+          "replays",
+          "evaluation",
+          "models"
+        ]
+      }
+    },
+    "/api/v1/shadow-scores": {
+      "post": {
+        "operationId": "run_shadow_score_api_v1_shadow_scores_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShadowScoreRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Run Shadow Score Api V1 Shadow Scores Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Shadow Score",
+        "tags": [
+          "replays",
+          "evaluation",
+          "models"
+        ]
+      }
+    },
+    "/api/v1/social/assets/{asset_id}/mentions": {
+      "get": {
+        "operationId": "asset_mentions_api_v1_social_assets__asset_id__mentions_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "title": "Asset Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Asset Mentions Api V1 Social Assets  Asset Id  Mentions Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Asset Mentions",
+        "tags": [
+          "surveillance"
+        ]
+      }
+    },
+    "/api/v1/social/platforms/{platform}/latest": {
+      "get": {
+        "operationId": "latest_social_state_api_v1_social_platforms__platform__latest_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "platform",
+            "required": true,
+            "schema": {
+              "title": "Platform",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Latest Social State Api V1 Social Platforms  Platform  Latest Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Latest Social State",
+        "tags": [
+          "surveillance"
+        ]
+      }
+    },
+    "/api/v1/social/sources/{source}/{platform}/health": {
+      "get": {
+        "operationId": "social_source_health_api_v1_social_sources__source___platform__health_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source",
+            "required": true,
+            "schema": {
+              "title": "Source",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "platform",
+            "required": true,
+            "schema": {
+              "title": "Platform",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Social Source Health Api V1 Social Sources  Source   Platform  Health Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Social Source Health",
+        "tags": [
+          "surveillance"
+        ]
+      }
+    },
+    "/api/v1/source-health": {
+      "get": {
+        "operationId": "source_health_api_v1_source_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceHealthResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Source Health",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/api/v1/stream/alerts": {
+      "get": {
+        "operationId": "alert_sse_api_v1_stream_alerts_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "last-event-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Last-Event-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Alert Sse",
+        "tags": [
+          "campaigns"
+        ]
+      }
+    },
+    "/api/v1/watchlists": {
+      "get": {
+        "operationId": "list_watchlists_api_v1_watchlists_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "scope_id",
+            "required": false,
+            "schema": {
+              "default": "LIVE",
+              "title": "Scope Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Actor-ID",
+            "required": true,
+            "schema": {
+              "title": "X-Actor-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WatchlistResponse"
+                  },
+                  "title": "Response List Watchlists Api V1 Watchlists Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Watchlists",
+        "tags": [
+          "analyst"
+        ]
+      },
+      "post": {
+        "operationId": "create_watchlist_api_v1_watchlists_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Actor-ID",
+            "required": true,
+            "schema": {
+              "title": "X-Actor-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WatchlistCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchlistResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Watchlist",
+        "tags": [
+          "analyst"
+        ]
+      }
+    },
+    "/api/v1/watchlists/{watchlist_id}/assets": {
+      "post": {
+        "operationId": "add_watchlist_asset_api_v1_watchlists__watchlist_id__assets_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "watchlist_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Watchlist Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Actor-ID",
+            "required": true,
+            "schema": {
+              "title": "X-Actor-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WatchlistAssetCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchlistResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Watchlist Asset",
+        "tags": [
+          "analyst"
+        ]
+      }
+    },
+    "/api/v1/watchlists/{watchlist_id}/assets/{asset_id}": {
+      "delete": {
+        "operationId": "remove_watchlist_asset_api_v1_watchlists__watchlist_id__assets__asset_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "watchlist_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Watchlist Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "title": "Asset Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Actor-ID",
+            "required": true,
+            "schema": {
+              "title": "X-Actor-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove Watchlist Asset",
+        "tags": [
+          "analyst"
+        ]
+      }
+    }
+  }
+}

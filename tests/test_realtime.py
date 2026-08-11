@@ -1,3 +1,7 @@
+from collections.abc import AsyncGenerator
+from contextlib import aclosing
+from typing import Any, cast
+
 from fastapi.testclient import TestClient
 
 from scam2market.api.routes.campaigns import get_realtime_broker
@@ -9,9 +13,9 @@ async def test_realtime_broker_replays_from_cursor() -> None:
     broker = InMemoryRealtimeBroker()
     stream_id = await broker.publish({"event_type": "alert.created", "severity": "HIGH"})
 
-    subscription = broker.subscribe("0-0")
-    received_id, event = await anext(subscription)
-    await subscription.aclose()
+    subscription = cast(AsyncGenerator[tuple[str, dict[str, Any]], None], broker.subscribe("0-0"))
+    async with aclosing(subscription):
+        received_id, event = await anext(subscription)
 
     assert received_id == stream_id
     assert event["severity"] == "HIGH"

@@ -1,108 +1,102 @@
+import uuid
+from datetime import UTC, datetime
+from importlib import import_module
+from typing import Any
+
+import numpy as np
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-import uuid
-import datetime
-import joblib
-import shap
-import numpy as np
-from typing import Dict, Any, List
 
 app = FastAPI()
 
-# Load a pretrained model (for demo we assume a scikit‑learn model saved at 'models/pretrained_model.joblib')
-# In production this would be the actual risk scoring model.
-try:
-    _model = joblib.load("models/pretrained_model.joblib")
-except Exception:
-    _model = None  # Fallback stub model
 
-# Initialize SHAP explainer (TreeExplainer for tree models, KernelExplainer otherwise)
-if _model is not None:
+def _load_optional_explainer() -> tuple[Any | None, Any | None]:
     try:
-        _explainer = shap.TreeExplainer(_model)
-    except Exception:
-        # KernelExplainer requires a background dataset; using zeros as placeholder
-        _explainer = shap.KernelExplainer(
-            _model.predict, np.zeros((1, len(_model.feature_names_in_)))
-        )
-else:
-    _explainer = None
+        joblib = import_module("joblib")
+        shap = import_module("shap")
+        model: Any = joblib.load("models/pretrained_model.joblib")
+        try:
+            explainer: Any = shap.TreeExplainer(model)
+        except Exception:
+            feature_count = len(model.feature_names_in_)
+            explainer = shap.KernelExplainer(model.predict, np.zeros((1, feature_count)))
+        return model, explainer
+    except (ImportError, OSError, AttributeError, ValueError):
+        return None, None
+
+
+_model, _explainer = _load_optional_explainer()
 
 
 class ExplainRequest(BaseModel):
     model_version: str
     prediction_id: str
-    features: Dict[str, Any]
+    features: dict[str, Any]
 
 
 class ExplainResponse(BaseModel):
     explanation_id: str
     model_version: str
     prediction_id: str
-    created_at: datetime.datetime
-    explanation: Dict[str, float]
+    created_at: datetime
+    explanation: dict[str, float]
     raw_shap_values: Any = None
 
 
-# In‑memory store for demo – replace with persistent DB table `ai_explanations`
-_explanations: Dict[str, ExplainResponse] = {}
+_explanations: dict[str, ExplainResponse] = {}
 
 
-def _generate_explanation(features: Dict[str, Any]):
+def _generate_explanation(
+    features: dict[str, Any],
+) -> tuple[dict[str, float], object | None]:
     if _model is None or _explainer is None:
-        # Simple fallback: equal weight to each feature
-        return {k: 1.0 / (i + 1) for i, k in enumerate(features.keys())}, None
-    # Preserve feature order as provided
-    feature_names = list(features.keys())
-    X = np.array([features[name] for name in feature_names], dtype=float).reshape(1, -1)
-    shap_vals = _explainer.shap_values(X)
-    # Handle possible list output for classifiers
-    if isinstance(shap_vals, list):
-        shap_vals = shap_vals[0]
-    explanation = {name: float(val) for name, val in zip(feature_names, shap_vals[0])}
-    return explanation, shap_vals.tolist()
+        return {name: 1.0 / (index + 1) for index, name in enumerate(features)}, None
+    feature_names = list(features)
+    values = np.array([float(features[name]) for name in feature_names], dtype=float).reshape(1, -1)
+    shap_values: Any = _explainer.shap_values(values)
+    if isinstance(shap_values, list):
+        shap_values = shap_values[0]
+    shap_array = np.asarray(shap_values)
+    explanation = {
+        name: float(value) for name, value in zip(feature_names, shap_array[0], strict=False)
+    }
+    return explanation, shap_array.tolist()
 
 
-@app.post("/v1/explain", response_model=ExplainResponse)
-async def explain(req: ExplainRequest):
-    explanation, raw_shap = _generate_explanation(req.features)
-    resp = ExplainResponse(
+def _build_response(request: ExplainRequest) -> ExplainResponse:
+    explanation, raw_shap = _generate_explanation(request.features)
+    return ExplainResponse(
         explanation_id=str(uuid.uuid4()),
-        model_version=req.model_version,
-        prediction_id=req.prediction_id,
-        created_at=datetime.datetime.utcnow(),
+        model_version=request.model_version,
+        prediction_id=request.prediction_id,
+        created_at=datetime.now(tz=UTC),
         explanation=explanation,
         raw_shap_values=raw_shap,
     )
-    _explanations[resp.explanation_id] = resp
-    return resp
+
+
+@app.post("/v1/explain", response_model=ExplainResponse)
+async def explain(request: ExplainRequest) -> ExplainResponse:
+    response = _build_response(request)
+    _explanations[response.explanation_id] = response
+    return response
 
 
 @app.get("/v1/explain/{explanation_id}", response_model=ExplainResponse)
-async def get_explanation(explanation_id: str):
-    if explanation_id not in _explanations:
+async def get_explanation(explanation_id: str) -> ExplainResponse:
+    response = _explanations.get(explanation_id)
+    if response is None:
         raise HTTPException(status_code=404, detail="Explanation not found")
-    return _explanations[explanation_id]
+    return response
 
 
-@app.post("/v1/explain/batch", response_model=List[ExplainResponse])
-async def batch_explain(reqs: List[ExplainRequest]):
-    responses: List[ExplainResponse] = []
-    for req in reqs:
-        explanation, raw_shap = _generate_explanation(req.features)
-        resp = ExplainResponse(
-            explanation_id=str(uuid.uuid4()),
-            model_version=req.model_version,
-            prediction_id=req.prediction_id,
-            created_at=datetime.datetime.utcnow(),
-            explanation=explanation,
-            raw_shap_values=raw_shap,
-        )
-        _explanations[resp.explanation_id] = resp
-        responses.append(resp)
+@app.post("/v1/explain/batch", response_model=list[ExplainResponse])
+async def batch_explain(requests: list[ExplainRequest]) -> list[ExplainResponse]:
+    responses = [_build_response(request) for request in requests]
+    _explanations.update({response.explanation_id: response for response in responses})
     return responses
 
 
 @app.get("/health")
-async def health():
+async def health() -> dict[str, str]:
     return {"status": "ok"}

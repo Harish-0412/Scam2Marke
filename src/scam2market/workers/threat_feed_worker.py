@@ -1,51 +1,81 @@
 import asyncio
 import logging
-from typing import AsyncIterator
+import os
+from datetime import UTC, datetime
 
-import httpx
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from scam2market.config.settings import get_settings
-from scam2market.db.session import AsyncSessionLocal
 from scam2market.db.models import ThreatIndicatorModel
-from scam2market.intelligence.otx_client import OTXClient
+from scam2market.db.session import AsyncSessionLocal
+from scam2market.intelligence.otx_client import JsonObject, OTXClient
 
 logger = logging.getLogger(__name__)
 
 
 async def fetch_and_store_indicators() -> None:
-    settings = get_settings()
     client = OTXClient()
-    async for obj in client.fetch_pulses():
-        # OTX objects may contain a list of indicators under "objects"
-        indicators = obj.get("objects", [])
-        async with AsyncSessionLocal() as session:
-            async with session.begin():
-                for ind in indicators:
-                    indicator = ThreatIndicatorModel(
-                        indicator_id=ind.get("id"),
-                        indicator_type=ind.get("type", "unknown"),
-                        source="OTX",
-                        severity=ind.get("severity", "low"),
-                        description=ind.get("description", ""),
-                        raw_json=ind,
-                        first_seen=ind.get("created"),
-                        last_seen=ind.get("modified", ind.get("created")),
+    try:
+        async for pulse in client.fetch_pulses():
+            raw_indicators = pulse.get("objects", [])
+            if not isinstance(raw_indicators, list):
+                logger.warning("otx_pulse_objects_not_list")
+                continue
+            async with AsyncSessionLocal() as session, session.begin():
+                for raw_indicator in raw_indicators:
+                    if not isinstance(raw_indicator, dict):
+                        continue
+                    indicator: JsonObject = {
+                        str(key): value for key, value in raw_indicator.items()
+                    }
+                    indicator_id = indicator.get("id")
+                    if not isinstance(indicator_id, str) or not indicator_id:
+                        continue
+                    first_seen = _parse_datetime(indicator.get("created"))
+                    last_seen = _parse_datetime(indicator.get("modified")) or first_seen
+                    if first_seen is None:
+                        logger.warning(
+                            "otx_indicator_missing_created_at",
+                            extra={"indicator_id": indicator_id},
+                        )
+                        continue
+                    await session.merge(
+                        ThreatIndicatorModel(
+                            indicator_id=indicator_id,
+                            indicator_type=str(indicator.get("type", "unknown")),
+                            source="OTX",
+                            severity=str(indicator.get("severity", "low")),
+                            description=str(indicator.get("description", "")),
+                            raw_json=indicator,
+                            first_seen=first_seen,
+                            last_seen=last_seen,
+                        )
                     )
-                    session.add(indicator)
-            await session.commit()
-    await client.close()
+    finally:
+        await client.close()
+
+
+def _parse_datetime(value: object) -> datetime | None:
+    if not isinstance(value, str) or not value:
+        return None
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
 
 
 async def run() -> None:
     logger.info("Starting Threat Feed Worker")
+    if not os.getenv("OTX_API_KEY"):
+        logger.warning("threat_feed_disabled", extra={"reason": "OTX_API_KEY_NOT_CONFIGURED"})
+        while True:
+            await asyncio.sleep(3600)
     while True:
         try:
             await fetch_and_store_indicators()
-        except Exception as exc:
-            logger.exception("Error in threat feed worker: %s", exc)
-        await asyncio.sleep(300)  # poll every 5 minutes
+        except Exception:
+            logger.exception("threat_feed_poll_failed")
+        await asyncio.sleep(300)
 
 
 def main() -> None:
     asyncio.run(run())
+
+
+if __name__ == "__main__":
+    main()
