@@ -36,6 +36,20 @@ class Settings(BaseSettings):
     realtime_stream_key: str = "stream:alerts:v1"
     realtime_stream_max_length: int = Field(default=10_000, ge=100)
     mlflow_tracking_uri: AnyUrl | str = "http://localhost:5000"
+    mlflow_enabled: bool = True
+    mlflow_timeout_seconds: float = Field(default=5.0, gt=0, le=30)
+    otel_exporter_otlp_endpoint: str | None = None
+    dependency_probe_timeout_seconds: float = Field(default=2.0, gt=0, le=10)
+    circuit_failure_threshold: int = Field(default=3, ge=1, le=20)
+    circuit_recovery_seconds: float = Field(default=30.0, gt=0, le=600)
+    stream_batch_size: int = Field(default=50, ge=1, le=1000)
+    stream_batch_wait_seconds: float = Field(default=0.25, gt=0, le=10)
+    rate_limit_enabled: bool = True
+    rate_limit_capacity: int = Field(default=300, ge=1, le=100_000)
+    rate_limit_refill_per_second: float = Field(default=5.0, gt=0, le=10_000)
+    rate_limit_fail_closed: bool = False
+    service_api_key: str | None = None
+    require_api_key: bool = False
 
     allowed_origins: Annotated[list[str], NoDecode] = [
         "http://localhost:3000",

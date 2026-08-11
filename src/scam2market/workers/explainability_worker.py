@@ -1,17 +1,14 @@
 import asyncio
 import logging
-from typing import List
+from datetime import UTC, datetime
+from typing import Any
+from uuid import NAMESPACE_URL, UUID, uuid5
 
-import httpx
-from fastapi import FastAPI
 from pydantic import BaseModel
 
-from scam2market.config.settings import get_settings
-from scam2market.db.session import AsyncSessionLocal
 from scam2market.db.models import ExplainabilityOutputModel
+from scam2market.db.session import AsyncSessionLocal
 from scam2market.intelligence.explainability_service import (
-    ExplainRequest,
-    ExplainResponse,
     _generate_explanation,
 )
 
@@ -21,22 +18,25 @@ logger = logging.getLogger(__name__)
 class PredictionEvent(BaseModel):
     model_version: str
     prediction_id: str
-    features: dict
+    features: dict[str, Any]
 
 
 async def process_prediction(event: PredictionEvent) -> None:
-    explanation, raw_shap = _generate_explanation(event.features)
-    async with AsyncSessionLocal() as session:
-        async with session.begin():
-            out = ExplainabilityOutputModel(
-                claim_id=event.prediction_id,  # using prediction_id as claim placeholder
-                model_version=event.model_version,
-                explanation=str(explanation),
-                relevance_score=None,
-                generated_at=None,  # default now
-            )
-            session.add(out)
-        await session.commit()
+    explanation, _ = _generate_explanation(event.features)
+    try:
+        claim_id = UUID(event.prediction_id)
+    except ValueError:
+        claim_id = uuid5(NAMESPACE_URL, f"prediction:{event.prediction_id}")
+    relevance = max((abs(value) for value in explanation.values()), default=0.0)
+    async with AsyncSessionLocal() as session, session.begin():
+        out = ExplainabilityOutputModel(
+            claim_id=claim_id,
+            model_version=event.model_version,
+            explanation=str(explanation),
+            relevance_score=relevance,
+            generated_at=datetime.now(tz=UTC),
+        )
+        session.add(out)
 
 
 async def run() -> None:
@@ -49,3 +49,7 @@ async def run() -> None:
 
 def main() -> None:
     asyncio.run(run())
+
+
+if __name__ == "__main__":
+    main()

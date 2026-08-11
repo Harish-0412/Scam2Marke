@@ -1,5 +1,9 @@
 import asyncio
+import hashlib
+import json
 from uuid import UUID, uuid4
+
+from sqlalchemy import select
 
 from scam2market.common.logging import configure_logging, get_logger
 from scam2market.common.time import utc_now
@@ -52,8 +56,24 @@ async def _create_replay_session(replay_session_id: UUID) -> Asset:
             ReplaySessionModel(
                 replay_session_id=replay_session_id,
                 dataset_id=scenario.scenario_id,
+                scope_id=str(replay_session_id),
+                scenario_version=scenario.scenario_version,
+                manifest_hash=hashlib.sha256(
+                    json.dumps(
+                        scenario.model_dump(mode="json"),
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ).encode()
+                ).hexdigest(),
+                random_seed=scenario.seed,
                 speed_multiplier=0.0,
                 status="RUNNING",
+                configuration_json={
+                    "isolation": {
+                        "scope_id": str(replay_session_id),
+                        "publishes_to_live": False,
+                    }
+                },
                 started_at=utc_now(),
             )
         )
@@ -126,6 +146,98 @@ async def run() -> None:
     finally:
         await publisher.stop()
         await state.close()
+
+
+async def run_queued_session(replay_session_id: UUID) -> None:
+    """Execute a replay created through the API control plane."""
+    settings = get_settings()
+    configure_logging(settings.log_level)
+    async with AsyncSessionLocal.begin() as session:
+        replay = await session.get(ReplaySessionModel, replay_session_id, with_for_update=True)
+        if replay is None or replay.status != "QUEUED":
+            return
+        scenario = load_scenario_manifest(f"{replay.dataset_id}.yaml")
+        asset = Asset(
+            asset_id=scenario.asset_id,
+            symbol="S2M",
+            name="Scam2Market Demo Asset",
+            asset_type=AssetType.synthetic,
+            quote_asset="USDT",
+        )
+        if await session.get(AssetModel, asset.asset_id) is None:
+            session.add(
+                AssetModel(
+                    asset_id=asset.asset_id,
+                    symbol=asset.symbol,
+                    name=asset.name,
+                    asset_type=asset.asset_type.value,
+                    quote_asset=asset.quote_asset,
+                    metadata_json={"dataset_id": scenario.scenario_id},
+                )
+            )
+        replay.status = "RUNNING"
+        replay.started_at = utc_now()
+    state = RedisStateStore(settings.redis_url)
+    publisher = EventPublisher()
+    market_service = MarketIngestionService(
+        dedupe=state,
+        state=state,
+        publisher=publisher,
+        quality=SourceQualityTracker(settings.market_freshness_threshold_seconds),
+    )
+    social_service = SocialIngestionService(
+        dedupe=state,
+        state=state,
+        publisher=publisher,
+        quality=SourceQualityTracker(settings.social_freshness_threshold_seconds),
+        pseudonymizer=AuthorPseudonymizer(
+            settings.author_pseudonymization_key,
+            key_version=settings.author_pseudonymization_key_version,
+        ),
+        resolver=AssetMentionResolver(AssetRegistry([asset])),
+    )
+    await publisher.start()
+    try:
+        market_count, social_count = await asyncio.gather(
+            market_service.run_provider(SyntheticProvider(), str(replay_session_id)),
+            social_service.run_provider(SyntheticSocialProvider(), str(replay_session_id)),
+        )
+        if market_count != scenario.expected_event_counts.market:
+            raise RuntimeError("market replay event count mismatch")
+        if social_count != scenario.expected_event_counts.social:
+            raise RuntimeError("social replay event count mismatch")
+    except Exception:
+        await _finish_replay_session(replay_session_id, "FAILED")
+        raise
+    else:
+        await _finish_replay_session(replay_session_id, "COMPLETED")
+    finally:
+        await publisher.stop()
+        await state.close()
+
+
+async def run_control_worker() -> None:
+    settings = get_settings()
+    configure_logging(settings.log_level)
+    while True:
+        async with AsyncSessionLocal() as session:
+            replay_id = await session.scalar(
+                select(ReplaySessionModel.replay_session_id)
+                .where(ReplaySessionModel.status == "QUEUED")
+                .order_by(ReplaySessionModel.created_at)
+                .limit(1)
+            )
+        if replay_id is None:
+            await asyncio.sleep(1)
+            continue
+        try:
+            await run_queued_session(replay_id)
+        except Exception:
+            logger.exception("queued_replay_failed", extra={"replay_session_id": str(replay_id)})
+
+
+def control_worker_main() -> None:
+    asyncio.run(run_control_worker())
 
 
 def main() -> None:

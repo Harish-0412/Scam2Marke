@@ -1,5 +1,6 @@
 import hashlib
 from datetime import UTC, datetime, timedelta
+from typing import cast
 from uuid import NAMESPACE_URL, uuid5
 
 from scam2market.narratives.embeddings import (
@@ -69,7 +70,8 @@ async def test_future_disclosure_does_not_justify_past_alert() -> None:
     assert result.result == VerificationResult.supported_after_alert
     assert result.legitimate_event_score == 0
     assert result.claim_risk >= 0.7
-    assert result.retrieval_metadata["matches"][0]["is_future"] is True
+    matches = cast(list[dict[str, object]], result.retrieval_metadata["matches"])
+    assert matches[0]["is_future"] is True
 
 
 async def test_supported_before_alert_reduces_claim_risk_and_includes_metadata() -> None:

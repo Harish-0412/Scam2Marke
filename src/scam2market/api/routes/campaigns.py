@@ -73,11 +73,16 @@ async def campaigns(
 @router.get("/alerts")
 async def alerts(
     campaign_id: str | None = None,
+    scope_id: str = "LIVE",
     status: str = "ACTIVE",
     limit: int = Query(default=100, ge=1, le=500),
     session: AsyncSession = Depends(get_db_session),
 ) -> list[dict[str, Any]]:
-    query = select(AlertModel).where(AlertModel.status == status)
+    query = (
+        select(AlertModel)
+        .join(CampaignModel, CampaignModel.campaign_id == AlertModel.campaign_id)
+        .where(AlertModel.status == status, CampaignModel.scope_id == scope_id)
+    )
     if campaign_id is not None:
         query = query.where(AlertModel.campaign_id == campaign_id)
     rows = (

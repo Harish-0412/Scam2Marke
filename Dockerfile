@@ -14,6 +14,12 @@ COPY alembic.ini ./
 COPY alembic ./alembic
 COPY scripts ./scripts
 
+RUN groupadd --system scam2market && useradd --system --gid scam2market scam2market \
+    && mkdir -p /app/data/raw \
+    && chown -R scam2market:scam2market /app
+
+USER scam2market
+
 EXPOSE 8000
 
 CMD ["uvicorn", "scam2market.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -1,0 +1,7 @@
+apiVersion: 1
+providers:
+  - name: Scam2Market
+    folder: Scam2Market
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards

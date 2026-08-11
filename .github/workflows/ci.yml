@@ -54,12 +54,14 @@ jobs:
       - name: Type-check
         run: python -m mypy src tests
 
+      - name: Apply database migrations
+        run: python -m alembic upgrade head
+
       - name: Test
         run: python -m pytest
 
-      - name: Apply and reverse database migrations
+      - name: Reverse and re-apply latest database migration
         run: |
-          python -m alembic upgrade head
           python -m alembic downgrade -1
           python -m alembic upgrade head
 
@@ -74,3 +76,31 @@ jobs:
 
       - name: Build backend image
         run: docker build --tag scam2market-backend:ci .
+
+  compose-replay:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Boot complete backend
+        run: docker compose --profile intelligence --profile observability up --detach --build
+
+      - name: Run deterministic replay
+        run: docker compose --profile demo run --rm replay-scheduler
+
+      - name: Verify frozen release contract
+        run: python scripts/verify_release.py
+
+      - name: Capture service state
+        if: always()
+        run: docker compose --profile intelligence --profile observability ps
+
+      - name: Capture logs
+        if: failure()
+        run: docker compose --profile intelligence --profile observability logs --no-color --tail=300
+
+      - name: Stop stack
+        if: always()
+        run: docker compose --profile intelligence --profile observability down --volumes

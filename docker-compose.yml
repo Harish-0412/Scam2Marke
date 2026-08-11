@@ -8,6 +8,8 @@ services:
       DATABASE_URL: postgresql+asyncpg://scam2market:scam2market@postgres:5432/scam2market
       REDIS_URL: redis://redis:6379/0
       REDPANDA_BOOTSTRAP_SERVERS: redpanda:9092
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318/v1/traces
     ports:
       - "8000:8000"
     volumes:
@@ -21,6 +23,11 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
 
   migrate:
     build: .
@@ -98,6 +105,20 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
+    restart: unless-stopped
+
+  evidence-worker:
+    build: .
+    command: scam2market-evidence-worker
+    env_file:
+      - .env.example
+    volumes:
+      - ./src:/app/src
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      topic-init:
+        condition: service_completed_successfully
     restart: unless-stopped
 
   narrative-worker:
@@ -204,11 +225,20 @@ services:
       - ./src:/app/src
       - raw-data:/app/data/raw
     depends_on:
+      raw-volume-init:
+        condition: service_completed_successfully
       migrate:
         condition: service_completed_successfully
       topic-init:
         condition: service_completed_successfully
     restart: unless-stopped
+
+  raw-volume-init:
+    build: .
+    user: root
+    command: ["sh", "-c", "chown -R scam2market:scam2market /app/data/raw"]
+    volumes:
+      - raw-data:/app/data/raw
 
   market-ingestor:
     build: .
@@ -285,6 +315,22 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
+
+  replay-control-worker:
+    build: .
+    command: scam2market-replay-control
+    env_file:
+      - .env.example
+    volumes:
+      - ./src:/app/src
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      topic-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
 
   postgres:
     image: timescale/timescaledb:latest-pg16
@@ -370,11 +416,49 @@ services:
   mlflow:
     image: ghcr.io/mlflow/mlflow:latest
     profiles: ["intelligence"]
-    command: mlflow server --host 0.0.0.0 --port 5000
+    command: >-
+      mlflow server --host 0.0.0.0 --port 5000
+      --allowed-hosts "mlflow:5000,localhost:*,127.0.0.1:*"
     ports:
       - "5000:5000"
     volumes:
       - mlflow-data:/mlflow
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    profiles: ["observability"]
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=7d"]
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./ops/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    depends_on:
+      api:
+        condition: service_healthy
+
+  grafana:
+    image: grafana/grafana:12.1.0
+    profiles: ["observability"]
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: development-only-change-me
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./ops/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./ops/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.132.0
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ./ops/otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro
+    ports:
+      - "4318:4318"
 
 volumes:
   postgres-data:
@@ -382,3 +466,5 @@ volumes:
   neo4j-data:
   qdrant-data:
   mlflow-data:
+  prometheus-data:
+  grafana-data:

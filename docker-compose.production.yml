@@ -1,0 +1,20 @@
+services:
+  api:
+    command: uvicorn scam2market.main:app --host 0.0.0.0 --port 8000 --workers 2 --no-access-log
+    restart: always
+    read_only: true
+    tmpfs: ["/tmp"]
+    environment:
+      ENVIRONMENT: production
+      REQUIRE_API_KEY: "true"
+      RATE_LIMIT_FAIL_CLOSED: "true"
+    volumes: []
+  postgres:
+    ports: []
+    restart: always
+  redis:
+    ports: []
+    restart: always
+  redpanda:
+    ports: []
+    restart: always
