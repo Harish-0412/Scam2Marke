@@ -50,6 +50,16 @@ class Settings(BaseSettings):
     rate_limit_fail_closed: bool = False
     service_api_key: str | None = None
     require_api_key: bool = False
+    auth_required: bool = False
+    development_auth_enabled: bool = True
+    default_tenant_id: str = "default"
+    oidc_issuer: str | None = None
+    oidc_audience: str | None = None
+    oidc_jwks_url: str | None = None
+    oidc_tenant_claim: str = "tenant_id"
+    oidc_roles_claim: str = "roles"
+    service_key_pepper: str = "development-only-service-key-pepper"
+    service_key_default_ttl_days: int = Field(default=90, ge=1, le=365)
 
     allowed_origins: Annotated[list[str], NoDecode] = [
         "http://localhost:3000",

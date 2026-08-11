@@ -25,6 +25,7 @@ from scam2market.evaluation.schemas import (
     ShadowScoreRequest,
 )
 from scam2market.ingestion.scenarios import load_scenario_manifest
+from scam2market.security.auth import CurrentPrincipal
 
 router = APIRouter()
 
@@ -33,6 +34,7 @@ router = APIRouter()
 async def create_replay(
     body: ReplayCreate,
     actor_id: Annotated[str, Header(alias="X-Actor-ID")],
+    principal: CurrentPrincipal,
     session: AsyncSession = Depends(get_db_session),
 ) -> dict[str, Any]:
     try:
@@ -45,6 +47,7 @@ async def create_replay(
         json.dumps(manifest.model_dump(mode="json"), sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
     replay = ReplaySessionModel(
+        tenant_id=principal.tenant_id,
         replay_session_id=replay_id,
         scope_id=scope_id,
         dataset_id=manifest.scenario_id,
@@ -67,11 +70,12 @@ async def create_replay(
 
 @router.get("/replays")
 async def list_replays(
+    principal: CurrentPrincipal,
     status: str | None = None,
     limit: int = Query(default=100, ge=1, le=500),
     session: AsyncSession = Depends(get_db_session),
 ) -> list[dict[str, Any]]:
-    query = select(ReplaySessionModel)
+    query = select(ReplaySessionModel).where(ReplaySessionModel.tenant_id == principal.tenant_id)
     if status is not None:
         query = query.where(ReplaySessionModel.status == status.upper())
     rows = (
@@ -110,6 +114,7 @@ async def start_replay(
     }
     session.add(
         AuditLogModel(
+            tenant_id=replay.tenant_id,
             actor_id=actor_id,
             action="START_REPLAY",
             target_type="REPLAY_SESSION",
@@ -139,6 +144,7 @@ async def pause_replay(
     }
     session.add(
         AuditLogModel(
+            tenant_id=replay.tenant_id,
             actor_id=actor_id,
             action="PAUSE_REPLAY",
             target_type="REPLAY_SESSION",

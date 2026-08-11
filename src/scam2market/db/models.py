@@ -30,6 +30,85 @@ class TimestampMixin:
     )
 
 
+class TenantModel(TimestampMixin, Base):
+    __tablename__ = "tenants"
+
+    tenant_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="ACTIVE")
+    settings_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+
+
+class UserMembershipModel(TimestampMixin, Base):
+    __tablename__ = "user_memberships"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "subject", name="uq_membership_tenant_subject"),
+    )
+
+    membership_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4, server_default=func.gen_random_uuid()
+    )
+    tenant_id: Mapped[str] = mapped_column(
+        ForeignKey("tenants.tenant_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    subject: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    roles_json: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="ACTIVE")
+
+
+class ServiceAccountModel(TimestampMixin, Base):
+    __tablename__ = "service_accounts"
+
+    service_account_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4, server_default=func.gen_random_uuid()
+    )
+    tenant_id: Mapped[str] = mapped_column(
+        ForeignKey("tenants.tenant_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    roles_json: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="ACTIVE")
+    created_by: Mapped[str] = mapped_column(String(255), nullable=False)
+
+
+class ServiceAccountKeyModel(Base):
+    __tablename__ = "service_account_keys"
+
+    key_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    service_account_id: Mapped[PyUUID] = mapped_column(
+        ForeignKey("service_accounts.service_account_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    secret_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    key_prefix: Mapped[str] = mapped_column(String(24), nullable=False)
+    created_by: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    rotated_from_key_id: Mapped[str | None] = mapped_column(String(32))
+
+
+class AuthEventModel(Base):
+    __tablename__ = "auth_events"
+
+    auth_event_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4, server_default=func.gen_random_uuid()
+    )
+    tenant_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    subject: Mapped[str | None] = mapped_column(String(255), index=True)
+    event_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    auth_method: Mapped[str] = mapped_column(String(32), nullable=False)
+    success: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), index=True
+    )
+
+
 class AssetModel(TimestampMixin, Base):
     __tablename__ = "assets"
 
@@ -60,6 +139,9 @@ class ReplaySessionModel(TimestampMixin, Base):
         primary_key=True,
         default=uuid4,
         server_default=func.gen_random_uuid(),
+    )
+    tenant_id: Mapped[str] = mapped_column(
+        String(64), nullable=False, default="default", index=True
     )
     dataset_id: Mapped[str] = mapped_column(String(128), nullable=False)
     scope_id: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
@@ -131,6 +213,9 @@ class AuditLogModel(Base):
         primary_key=True,
         default=uuid4,
         server_default=func.gen_random_uuid(),
+    )
+    tenant_id: Mapped[str] = mapped_column(
+        String(64), nullable=False, default="default", index=True
     )
     actor_id: Mapped[str | None] = mapped_column(String(128))
     action: Mapped[str] = mapped_column(String(128), nullable=False)
@@ -471,6 +556,9 @@ class CampaignModel(TimestampMixin, Base):
     campaign_id: Mapped[PyUUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid4, server_default=func.gen_random_uuid()
     )
+    tenant_id: Mapped[str] = mapped_column(
+        String(64), nullable=False, default="default", index=True
+    )
     scope_id: Mapped[str] = mapped_column(String(128), nullable=False, default="LIVE", index=True)
     asset_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     stage: Mapped[str] = mapped_column(String(64), nullable=False, default="NORMAL")
@@ -543,6 +631,9 @@ class AlertModel(TimestampMixin, Base):
 
     alert_id: Mapped[PyUUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid4, server_default=func.gen_random_uuid()
+    )
+    tenant_id: Mapped[str] = mapped_column(
+        String(64), nullable=False, default="default", index=True
     )
     campaign_id: Mapped[PyUUID] = mapped_column(
         ForeignKey("campaigns.campaign_id", ondelete="CASCADE"), nullable=False, index=True
@@ -891,6 +982,9 @@ class InvestigationModel(TimestampMixin, Base):
     investigation_id: Mapped[PyUUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid4, server_default=func.gen_random_uuid()
     )
+    tenant_id: Mapped[str] = mapped_column(
+        String(64), nullable=False, default="default", index=True
+    )
     scope_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     alert_id: Mapped[PyUUID] = mapped_column(
         ForeignKey("alerts.alert_id", ondelete="RESTRICT"), nullable=False, index=True
@@ -1068,11 +1162,20 @@ class ShadowScoreModel(Base):
 class WatchlistModel(TimestampMixin, Base):
     __tablename__ = "watchlists"
     __table_args__ = (
-        UniqueConstraint("owner_id", "scope_id", "name", name="uq_watchlist_owner_scope_name"),
+        UniqueConstraint(
+            "tenant_id",
+            "owner_id",
+            "scope_id",
+            "name",
+            name="uq_watchlist_tenant_owner_scope_name",
+        ),
     )
 
     watchlist_id: Mapped[PyUUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid4, server_default=func.gen_random_uuid()
+    )
+    tenant_id: Mapped[str] = mapped_column(
+        String(64), nullable=False, default="default", index=True
     )
     owner_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     scope_id: Mapped[str] = mapped_column(String(128), nullable=False, default="LIVE", index=True)
@@ -1121,6 +1224,9 @@ class PolicyProposalModel(TimestampMixin, Base):
     proposal_id: Mapped[PyUUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid4, server_default=func.gen_random_uuid()
     )
+    tenant_id: Mapped[str] = mapped_column(
+        String(64), nullable=False, default="default", index=True
+    )
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="PENDING", index=True)
@@ -1136,6 +1242,9 @@ class ModelDriftEventModel(Base):
 
     drift_event_id: Mapped[PyUUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid4, server_default=func.gen_random_uuid()
+    )
+    tenant_id: Mapped[str] = mapped_column(
+        String(64), nullable=False, default="default", index=True
     )
     model_family: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     model_version: Mapped[str] = mapped_column(String(64), nullable=False)

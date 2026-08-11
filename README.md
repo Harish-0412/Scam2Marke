@@ -17,6 +17,7 @@ document:
 8. [Phases 11-12 Implementation Report](docs/implementation/PHASE_11_12_IMPLEMENTATION_REPORT.md)
 9. [CI/CD Pipeline](docs/operations/CI_CD_PIPELINE.md)
 10. [Next Services Roadmap](docs/planning/NEXT_SERVICES_ROADMAP.md)
+11. [Authentication And Tenant Isolation](docs/implementation/CHECKPOINT_1_AUTH_TENANCY.md)
 
 ## Current Phase
 
@@ -50,7 +51,8 @@ Phases 0 through 12 are implemented for the reproducible local surveillance scop
 - shadow scoring that is database-constrained never to control production alerts.
 - integrated Prometheus metrics, optional OTLP traces, Grafana operations dashboards, readiness
   probes, circuit breakers, bounded micro-batching, and visible optional-service degradation;
-- Redis token-bucket rate limiting, optional API-key enforcement, non-root containers, and untrusted
+- Redis token-bucket rate limiting, OIDC/JWT authentication, tenant-aware RBAC, rotatable hashed
+  service-account keys, PostgreSQL row-level security, non-root containers, and untrusted
   text/data-poisoning guardrails;
 - persistent model-drift reporting and auditable policy proposal governance;
 - frozen analyst API for watchlists, assets, timelines, campaigns, alerts, narratives, graphs,
@@ -133,6 +135,12 @@ the `intelligence` profile; the baseline detector and campaign engine continue w
 
 ## API
 
+- `GET /api/v1/auth/me`
+- `POST /api/v1/auth/tenants`
+- `POST /api/v1/auth/memberships`
+- `GET|POST /api/v1/auth/service-accounts`
+- `POST /api/v1/auth/service-accounts/{account_id}/keys/{key_id}/rotate`
+- `DELETE /api/v1/auth/service-accounts/{account_id}/keys/{key_id}`
 - `GET /api/v1/health`
 - `GET /api/v1/config`
 - `GET /api/v1/source-health`

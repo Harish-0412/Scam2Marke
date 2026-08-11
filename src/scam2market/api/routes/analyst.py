@@ -21,6 +21,7 @@ from scam2market.db.models import (
     WatchlistModel,
 )
 from scam2market.db.session import get_db_session
+from scam2market.security.auth import CurrentPrincipal
 
 router = APIRouter()
 
@@ -152,9 +153,11 @@ class GraphResponse(BaseModel):
 async def create_watchlist(
     body: WatchlistCreate,
     actor_id: Annotated[str, Header(alias="X-Actor-ID")],
+    principal: CurrentPrincipal,
     session: AsyncSession = Depends(get_db_session),
 ) -> dict[str, Any]:
     row = WatchlistModel(
+        tenant_id=principal.tenant_id,
         owner_id=actor_id,
         scope_id=body.scope_id,
         name=body.name,
@@ -170,13 +173,18 @@ async def create_watchlist(
 @router.get("/watchlists", response_model=list[WatchlistResponse])
 async def list_watchlists(
     actor_id: Annotated[str, Header(alias="X-Actor-ID")],
+    principal: CurrentPrincipal,
     scope_id: str = "LIVE",
     session: AsyncSession = Depends(get_db_session),
 ) -> list[dict[str, Any]]:
     rows = (
         await session.scalars(
             select(WatchlistModel)
-            .where(WatchlistModel.owner_id == actor_id, WatchlistModel.scope_id == scope_id)
+            .where(
+                WatchlistModel.tenant_id == principal.tenant_id,
+                WatchlistModel.owner_id == actor_id,
+                WatchlistModel.scope_id == scope_id,
+            )
             .order_by(WatchlistModel.is_default.desc(), WatchlistModel.name)
         )
     ).all()
@@ -378,6 +386,7 @@ async def acknowledge_alert(
         session.add(action)
         session.add(
             AuditLogModel(
+                tenant_id=row.tenant_id,
                 actor_id=actor_id,
                 action="ACKNOWLEDGE_ALERT",
                 target_type="ALERT",
