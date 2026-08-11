@@ -1,0 +1,200 @@
+name: CD
+
+on:
+  push:
+    branches:
+      - main
+      - work/phase-6-8-review-corrections
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ghcr.io/harish-0412/scam2marke-backend
+
+jobs:
+  verify:
+    name: Verify release candidate
+    runs-on: ubuntu-24.04
+    services:
+      timescaledb:
+        image: timescale/timescaledb:latest-pg16
+        env:
+          POSTGRES_DB: scam2market
+          POSTGRES_USER: scam2market
+          POSTGRES_PASSWORD: scam2market
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U scam2market -d scam2market"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql+asyncpg://scam2market:scam2market@localhost:5432/scam2market
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install project
+        run: python -m pip install -e ".[dev]"
+
+      - name: Run release quality gate
+        run: |
+          python -m ruff format --check src tests scripts alembic
+          python -m ruff check src tests scripts alembic
+          python -m mypy src tests
+          python -m alembic upgrade head
+          python -m pytest
+
+      - name: Validate development and production Compose contracts
+        run: |
+          docker compose config --quiet
+          cp .env.production.example .env.production
+          docker compose --env-file .env.production \
+            -f docker-compose.yml -f docker-compose.production.yml config --quiet
+
+  publish:
+    name: Publish immutable backend image
+    needs: verify
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
+      image: ${{ env.IMAGE_NAME }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Generate OCI tags and labels
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+          labels: |
+            org.opencontainers.image.title=Scam2Market Backend
+            org.opencontainers.image.description=Pump-and-dump market surveillance backend
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+
+      - name: Build and push image
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          sbom: true
+          provenance: false
+
+      - name: Attest image provenance
+        uses: actions/attest@v4
+        with:
+          subject-name: ${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+
+      - name: Write publish summary
+        run: |
+          echo "## Published image" >> "$GITHUB_STEP_SUMMARY"
+          echo '```text' >> "$GITHUB_STEP_SUMMARY"
+          echo "${IMAGE_NAME}@${{ steps.push.outputs.digest }}" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+  bundle:
+    name: Create deployment bundle
+    needs: publish
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Assemble digest-pinned deployment bundle
+        run: |
+          mkdir -p release
+          cp docker-compose.yml docker-compose.production.yml .env.production.example release/
+          cp -r ops contracts scripts/verify_release.py docs/operations release/
+          printf 'SCAM2MARKET_IMAGE=%s@%s\n' \
+            '${{ needs.publish.outputs.image }}' '${{ needs.publish.outputs.digest }}' \
+            > release/image.env
+          printf 'SOURCE_COMMIT=%s\n' '${{ github.sha }}' >> release/image.env
+
+      - name: Upload deployment bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: scam2market-deployment-${{ github.sha }}
+          path: release
+          retention-days: 7
+          if-no-files-found: error
+
+  deploy-staging:
+    name: Deploy staging on managed runner
+    if: github.ref == 'refs/heads/main' && vars.ENABLE_STAGING_DEPLOYMENT == 'true'
+    needs: publish
+    runs-on: [self-hosted, linux, scam2market-staging]
+    environment: staging
+    permissions:
+      contents: read
+      packages: read
+    env:
+      SCAM2MARKET_IMAGE: ${{ needs.publish.outputs.image }}@${{ needs.publish.outputs.digest }}
+      SCAM2MARKET_ENV_FILE: ${{ vars.SCAM2MARKET_ENV_FILE || '/etc/scam2market/scam2market.env' }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate managed environment
+        run: test -f "$SCAM2MARKET_ENV_FILE"
+
+      - name: Deploy the attested image digest
+        run: |
+          docker compose --env-file "$SCAM2MARKET_ENV_FILE" \
+            -f docker-compose.yml -f docker-compose.production.yml \
+            --profile intelligence --profile observability pull
+          docker compose --env-file "$SCAM2MARKET_ENV_FILE" \
+            -f docker-compose.yml -f docker-compose.production.yml \
+            --profile intelligence --profile observability up --detach --no-build
+          python scripts/verify_release.py

@@ -8,13 +8,31 @@ services:
       ENVIRONMENT: production
       REQUIRE_API_KEY: "true"
       RATE_LIMIT_FAIL_CLOSED: "true"
-    volumes: []
+    volumes: !reset []
   postgres:
-    ports: []
+    ports: !reset []
     restart: always
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
   redis:
-    ports: []
+    ports: !reset []
     restart: always
   redpanda:
-    ports: []
+    ports: !reset []
     restart: always
+  neo4j:
+    ports: !reset []
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?NEO4J_PASSWORD is required}
+  qdrant:
+    ports: !reset []
+  mlflow:
+    ports: !reset []
+  prometheus:
+    ports: !reset []
+  grafana:
+    ports: !reset []
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD is required}
+  otel-collector:
+    ports: !reset []

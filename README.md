@@ -15,6 +15,8 @@ document:
 6. [Phases 6-8 Implementation Notes](docs/implementation/phases-6-8.md)
 7. [Phases 9-10 Implementation Report](docs/implementation/PHASE_9_10_IMPLEMENTATION_REPORT.md)
 8. [Phases 11-12 Implementation Report](docs/implementation/PHASE_11_12_IMPLEMENTATION_REPORT.md)
+9. [CI/CD Pipeline](docs/operations/CI_CD_PIPELINE.md)
+10. [Next Services Roadmap](docs/planning/NEXT_SERVICES_ROADMAP.md)
 
 ## Current Phase
 
@@ -115,6 +117,17 @@ For production-shaped validation, replace every placeholder in `.env.production.
 values from a managed secret store, then apply both Compose files. The repository intentionally does
 not contain deployment credentials.
 
+## CI/CD
+
+Every push and pull request runs linting, strict type checks, database migrations, tests, container
+builds, and the complete replay regression. The CD workflow publishes a commit-addressed backend
+image to `ghcr.io/harish-0412/scam2marke-backend`, adds an SBOM and provenance attestation, and uploads
+a digest-pinned deployment bundle.
+
+Automatic staging deployment is intentionally opt-in. See the
+[CI/CD Pipeline](docs/operations/CI_CD_PIPELINE.md) for free-tier boundaries and the protected
+self-hosted runner setup.
+
 The raw replay archive is written to the `raw-data` volume. Qdrant and Neo4j are isolated behind
 the `intelligence` profile; the baseline detector and campaign engine continue without them.
 
@@ -181,3 +194,5 @@ the `intelligence` profile; the baseline detector and campaign engine continue w
 - [Phases 11-12 Implementation Report](docs/implementation/PHASE_11_12_IMPLEMENTATION_REPORT.md)
 - [Production Readiness](docs/operations/PRODUCTION_READINESS.md)
 - [Backup And Restore Runbook](docs/operations/BACKUP_RESTORE_RUNBOOK.md)
+- [CI/CD Pipeline](docs/operations/CI_CD_PIPELINE.md)
+- [Next Services Roadmap](docs/planning/NEXT_SERVICES_ROADMAP.md)
