@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Scam2Market Analyst</title>
+  <link rel="stylesheet" href="/dashboard/app.css">
+  <link rel="stylesheet" href="/dashboard/responsive.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">S2M</span><strong>Scam2Market</strong><span>Analyst</span></div>
+    <div class="top-actions"><span id="connection" class="status-dot">Connecting</span><button id="refresh" class="icon-button" title="Refresh data" aria-label="Refresh data">&#8635;</button></div>
+  </header>
+  <div class="workspace">
+    <nav aria-label="Workspace views">
+      <button class="nav-item active" data-view="overview">Overview</button>
+      <button class="nav-item" data-view="alerts">Alerts</button>
+      <button class="nav-item" data-view="campaigns">Campaigns</button>
+      <button class="nav-item" data-view="operations">Operations</button>
+    </nav>
+    <main>
+      <section class="summary" aria-label="Risk summary">
+        <div><span>Active alerts</span><strong id="active-count">0</strong></div>
+        <div><span>Critical</span><strong id="critical-count">0</strong></div>
+        <div><span>Open campaigns</span><strong id="campaign-count">0</strong></div>
+        <div><span>Pipeline</span><strong id="pipeline-state">Checking</strong></div>
+      </section>
+      <section id="alerts-view" class="view active">
+        <div class="section-head">
+          <div><h1>Alert queue</h1><p id="last-updated">Awaiting current surveillance state</p></div>
+          <div class="filters">
+            <input id="search" type="search" placeholder="Search alerts" aria-label="Search alerts">
+            <div class="segments" aria-label="Severity filter">
+              <button class="selected" data-severity="ALL">All</button><button data-severity="CRITICAL">Critical</button><button data-severity="HIGH">High</button><button data-severity="WATCH">Watch</button>
+            </div>
+          </div>
+        </div>
+        <div class="split">
+          <div class="table-wrap">
+            <table><thead><tr><th>Severity</th><th>Signal</th><th>Campaign</th><th>Occurrences</th><th>Last seen</th></tr></thead><tbody id="alert-rows"></tbody></table>
+            <div id="empty-alerts" class="empty" hidden>No alerts match this view.</div>
+          </div>
+          <aside id="alert-detail" class="detail"><h2>Select an alert</h2><p>Alert evidence and actions appear here.</p></aside>
+        </div>
+      </section>
+      <section id="campaigns-view" class="view">
+        <div class="section-head"><div><h1>Campaigns</h1><p>Persistent manipulation state across feature windows</p></div></div>
+        <div id="campaign-grid" class="campaign-grid"></div>
+      </section>
+      <section id="operations-view" class="view">
+        <div class="section-head"><div><h1>Operations</h1><p>Durable processing and source readiness</p></div></div>
+        <div class="operations-grid"><div><h2>Service readiness</h2><dl id="readiness"></dl></div><div><h2>Worker checkpoints</h2><div id="checkpoints"></div></div></div>
+      </section>
+    </main>
+  </div>
+  <div id="auth-panel" class="auth-panel" hidden>
+    <form id="auth-form"><h2>Connect identity</h2><label for="token">Access token</label><input id="token" type="password" autocomplete="off"><button type="submit">Connect</button></form>
+  </div>
+  <script src="/dashboard/app.js" defer></script>
+</body>
+</html>

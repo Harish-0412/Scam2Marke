@@ -19,6 +19,7 @@ document:
 10. [Next Services Roadmap](docs/planning/NEXT_SERVICES_ROADMAP.md)
 11. [Authentication And Tenant Isolation](docs/implementation/CHECKPOINT_1_AUTH_TENANCY.md)
 12. [Live Providers And Durable Checkpoints](docs/implementation/CHECKPOINT_2_LIVE_PROVIDERS.md)
+13. [Analyst Dashboard And Notifications](docs/implementation/CHECKPOINT_3_DASHBOARD_NOTIFICATIONS.md)
 
 ## Current Phase
 
@@ -64,6 +65,8 @@ Phases 0 through 12 are implemented for the reproducible local surveillance scop
   evidence, investigations, feedback, replay, and evaluation;
 - queued replay control worker, generated OpenAPI contract, production-shaped Compose override,
   release verifier, and complete Compose replay CI job.
+- tenant-scoped Slack, Teams, email, and signed webhook delivery with idempotent retry history;
+- an analyst dashboard for alert triage, campaign state, source readiness, and durable checkpoints.
 
 Phase 8 reminder: production official-source connectors and a dedicated analyst-facing
 claim/disclosure verification API still need to be completed.
@@ -113,6 +116,7 @@ docker compose --profile observability up --build
 Local service URLs:
 
 - API documentation: `http://localhost:8000/docs`
+- analyst dashboard: `http://localhost:8000/dashboard/`
 - readiness: `http://localhost:8000/api/v1/ready`
 - Prometheus: `http://localhost:9090`
 - Grafana: `http://localhost:3001` (`admin` / development password from Compose)

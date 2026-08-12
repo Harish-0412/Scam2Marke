@@ -33,7 +33,14 @@ class Role(StrEnum):
 ROLE_PERMISSIONS: dict[Role, frozenset[str]] = {
     Role.PLATFORM_ADMIN: frozenset({"*"}),
     Role.TENANT_ADMIN: frozenset(
-        {"tenant:manage", "service-account:manage", "investigation:write", "alert:write", "read"}
+        {
+            "tenant:manage",
+            "service-account:manage",
+            "notification:manage",
+            "investigation:write",
+            "alert:write",
+            "read",
+        }
     ),
     Role.ANALYST: frozenset({"investigation:write", "alert:write", "feedback:write", "read"}),
     Role.REVIEWER: frozenset({"feedback:adjudicate", "policy:approve", "read"}),

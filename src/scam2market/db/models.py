@@ -1259,3 +1259,64 @@ class ModelDriftEventModel(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+
+
+class NotificationChannelModel(TimestampMixin, Base):
+    __tablename__ = "notification_channels"
+
+    channel_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4, server_default=func.gen_random_uuid()
+    )
+    tenant_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    channel_type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    endpoint: Mapped[str] = mapped_column(Text, nullable=False)
+    secret: Mapped[str | None] = mapped_column(Text)
+    config_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_by: Mapped[str] = mapped_column(String(255), nullable=False)
+
+
+class NotificationSubscriptionModel(TimestampMixin, Base):
+    __tablename__ = "notification_subscriptions"
+
+    subscription_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4, server_default=func.gen_random_uuid()
+    )
+    tenant_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    channel_id: Mapped[PyUUID] = mapped_column(
+        ForeignKey("notification_channels.channel_id", ondelete="CASCADE"), nullable=False
+    )
+    minimum_severity: Mapped[str] = mapped_column(String(32), nullable=False, default="HIGH")
+    asset_ids_json: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+    alert_types_json: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class NotificationDeliveryModel(Base):
+    __tablename__ = "notification_deliveries"
+    __table_args__ = (
+        UniqueConstraint("channel_id", "event_id", name="uq_notification_channel_event"),
+    )
+
+    delivery_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4, server_default=func.gen_random_uuid()
+    )
+    tenant_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    channel_id: Mapped[PyUUID] = mapped_column(
+        ForeignKey("notification_channels.channel_id", ondelete="CASCADE"), nullable=False
+    )
+    event_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    alert_id: Mapped[PyUUID | None] = mapped_column(UUID(as_uuid=True), index=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="PENDING", index=True)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    payload_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    next_attempt_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), index=True
+    )
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error: Mapped[str | None] = mapped_column(Text)
+    response_code: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )

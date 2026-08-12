@@ -1,8 +1,10 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from scam2market.api.router import api_router
 from scam2market.common.errors import register_exception_handlers
@@ -48,6 +50,8 @@ def create_app() -> FastAPI:
 
     register_exception_handlers(app)
     app.include_router(api_router, prefix="/api/v1")
+    dashboard_dir = Path(__file__).with_name("dashboard")
+    app.mount("/dashboard", StaticFiles(directory=dashboard_dir, html=True), name="dashboard")
     configure_tracing(
         app,
         service_name="scam2market-api",

@@ -60,6 +60,7 @@ class Settings(BaseSettings):
     oidc_roles_claim: str = "roles"
     service_key_pepper: str = "development-only-service-key-pepper"
     service_key_default_ttl_days: int = Field(default=90, ge=1, le=365)
+    notification_poll_interval_seconds: float = Field(default=1.0, ge=0.1, le=60)
 
     allowed_origins: Annotated[list[str], NoDecode] = [
         "http://localhost:3000",

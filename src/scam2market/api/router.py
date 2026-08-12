@@ -7,6 +7,7 @@ from scam2market.api.routes import (
     evaluation,
     evidence,
     health,
+    notifications,
     operations,
     surveillance,
 )
@@ -26,3 +27,4 @@ api_router.include_router(
 )
 api_router.include_router(analyst.router, tags=["analyst"], dependencies=protected)
 api_router.include_router(operations.router, tags=["operations"], dependencies=protected)
+api_router.include_router(notifications.router, tags=["notifications"], dependencies=protected)
