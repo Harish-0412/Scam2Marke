@@ -2,6 +2,7 @@ import asyncio
 
 from scam2market.common.logging import configure_logging, get_logger
 from scam2market.config.settings import get_settings
+from scam2market.ingestion.live_providers import BinanceMarketProvider
 from scam2market.ingestion.market import MarketIngestionService, SyntheticProvider
 from scam2market.ingestion.quality import SourceQualityTracker
 from scam2market.state import RedisStateStore
@@ -23,7 +24,16 @@ async def run() -> None:
     )
     await publisher.start()
     try:
-        count = await service.run_provider(SyntheticProvider())
+        provider = (
+            BinanceMarketProvider(
+                settings.live_market_symbols,
+                base_url=settings.binance_base_url,
+                poll_interval_seconds=settings.market_poll_interval_seconds,
+            )
+            if settings.market_provider.lower() == "binance"
+            else SyntheticProvider()
+        )
+        count = await service.run_provider(provider)
         logger.info("market_ingestion_complete", extra={"accepted_event_count": count})
     finally:
         await publisher.stop()

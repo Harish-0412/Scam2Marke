@@ -18,17 +18,22 @@ document:
 9. [CI/CD Pipeline](docs/operations/CI_CD_PIPELINE.md)
 10. [Next Services Roadmap](docs/planning/NEXT_SERVICES_ROADMAP.md)
 11. [Authentication And Tenant Isolation](docs/implementation/CHECKPOINT_1_AUTH_TENANCY.md)
+12. [Live Providers And Durable Checkpoints](docs/implementation/CHECKPOINT_2_LIVE_PROVIDERS.md)
 
 ## Current Phase
 
 Phases 0 through 12 are implemented for the reproducible local surveillance scope:
 
 - deterministic synthetic and replay market providers;
+- live Binance trade, top-five order-book, and closed-candle polling with source cursors;
+- live Mastodon public-timeline and RSS social providers with deduplication and optional credentials;
 - normalized trade, candle, and top-five order book ingestion;
 - privacy-preserving social replay, parsing, and versioned asset resolution;
 - Redpanda-first telemetry with independent TimescaleDB and Parquet consumers;
 - an outbox reserved for database-originated domain events;
 - event-time 1-minute and 5-minute windows with source watermarks and corrected revisions;
+- checksum-protected feature-worker state snapshots with database-first offset commits and exact
+  arrival-order recovery;
 - feature lineage, exact model-input schemas, and low-history confidence;
 - baseline market, social, coordination, and temporal detectors;
 - separate market, social-coordination, and cross-domain risks with coded missing outputs;
@@ -185,6 +190,7 @@ the `intelligence` profile; the baseline detector and campaign engine continue w
 - `GET /api/v1/assets/{asset_id}/narratives`
 - `GET /api/v1/narratives/{narrative_id}`
 - `GET|POST /api/v1/operations/model-drift`
+- `GET /api/v1/operations/worker-checkpoints`
 - `GET|POST /api/v1/operations/policy-proposals`
 - `GET /api/v1/stream/alerts` (server-sent events)
 - `WS /api/v1/ws/alerts?after_id={redis_stream_id}`

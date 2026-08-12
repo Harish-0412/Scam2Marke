@@ -562,6 +562,9 @@ class SqlWorkerCheckpointRepository:
         partition: int,
         last_durable_offset: int,
         feature_state_version: str | None = None,
+        state_json: dict[str, Any] | None = None,
+        state_checksum: str | None = None,
+        event_time: datetime | None = None,
     ) -> None:
         async with self._sessions.begin() as session:
             checkpoint = await session.get(
@@ -580,6 +583,9 @@ class SqlWorkerCheckpointRepository:
                         partition=partition,
                         last_durable_offset=last_durable_offset,
                         feature_state_version=feature_state_version,
+                        state_json=state_json,
+                        state_checksum=state_checksum,
+                        event_time=event_time,
                     )
                 )
                 return
@@ -587,3 +593,16 @@ class SqlWorkerCheckpointRepository:
                 checkpoint.last_durable_offset, last_durable_offset
             )
             checkpoint.feature_state_version = feature_state_version
+            checkpoint.state_json = state_json
+            checkpoint.state_checksum = state_checksum
+            checkpoint.event_time = event_time
+
+    async def latest(self, consumer_group: str) -> WorkerCheckpointModel | None:
+        async with self._sessions() as session:
+            checkpoint: WorkerCheckpointModel | None = await session.scalar(
+                select(WorkerCheckpointModel)
+                .where(WorkerCheckpointModel.consumer_group == consumer_group)
+                .order_by(WorkerCheckpointModel.updated_at.desc())
+                .limit(1)
+            )
+            return checkpoint

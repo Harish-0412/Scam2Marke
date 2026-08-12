@@ -6,7 +6,8 @@ services:
     tmpfs: ["/tmp"]
     environment:
       ENVIRONMENT: production
-      REQUIRE_API_KEY: "true"
+      AUTH_REQUIRED: "true"
+      DEVELOPMENT_AUTH_ENABLED: "false"
       RATE_LIMIT_FAIL_CLOSED: "true"
     volumes: !reset []
   postgres:

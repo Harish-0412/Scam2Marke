@@ -171,7 +171,7 @@ class EventIngestionLogModel(Base):
     schema_version: Mapped[int] = mapped_column(Integer, nullable=False)
     source: Mapped[str] = mapped_column(String(64), nullable=False)
     source_event_id: Mapped[str] = mapped_column(String(255), nullable=False)
-    source_sequence: Mapped[int | None] = mapped_column(Integer)
+    source_sequence: Mapped[int | None] = mapped_column(BigInteger)
     asset_id: Mapped[str | None] = mapped_column(String(64), index=True)
     event_time: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -255,6 +255,9 @@ class WorkerCheckpointModel(Base):
     partition: Mapped[int] = mapped_column(Integer, primary_key=True)
     last_durable_offset: Mapped[int] = mapped_column(BigInteger, nullable=False)
     feature_state_version: Mapped[str | None] = mapped_column(String(128))
+    state_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    state_checksum: Mapped[str | None] = mapped_column(String(64))
+    event_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

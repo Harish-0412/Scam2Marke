@@ -7,7 +7,12 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from scam2market.db.models import AuditLogModel, ModelDriftEventModel, PolicyProposalModel
+from scam2market.db.models import (
+    AuditLogModel,
+    ModelDriftEventModel,
+    PolicyProposalModel,
+    WorkerCheckpointModel,
+)
 from scam2market.db.session import get_db_session
 from scam2market.security.auth import CurrentPrincipal
 
@@ -32,6 +37,38 @@ class PolicyProposalCreate(BaseModel):
 class PolicyDecision(BaseModel):
     status: Literal["APPROVED", "REJECTED"]
     reason: str = Field(min_length=5, max_length=2000)
+
+
+@router.get("/worker-checkpoints")
+async def list_worker_checkpoints(
+    consumer_group: str | None = None,
+    session: AsyncSession = Depends(get_db_session),
+) -> list[dict[str, Any]]:
+    query = select(WorkerCheckpointModel)
+    if consumer_group:
+        query = query.where(WorkerCheckpointModel.consumer_group == consumer_group)
+    rows = (
+        await session.scalars(
+            query.order_by(
+                WorkerCheckpointModel.consumer_group,
+                WorkerCheckpointModel.topic,
+                WorkerCheckpointModel.partition,
+            )
+        )
+    ).all()
+    return [
+        {
+            "consumer_group": row.consumer_group,
+            "topic": row.topic,
+            "partition": row.partition,
+            "last_durable_offset": row.last_durable_offset,
+            "state_version": row.feature_state_version,
+            "state_checksum": row.state_checksum,
+            "event_time": row.event_time,
+            "updated_at": row.updated_at,
+        }
+        for row in rows
+    ]
 
 
 @router.post("/model-drift", status_code=201)

@@ -73,6 +73,15 @@ class Settings(BaseSettings):
     feature_allowed_lateness_seconds: int = Field(default=120, ge=0)
     feature_window_intervals_seconds: Annotated[list[int], NoDecode] = [60, 300]
     feature_source_idle_after_seconds: int = Field(default=300, gt=0)
+    market_provider: str = "synthetic"
+    live_market_symbols: Annotated[list[str], NoDecode] = ["BTCUSDT"]
+    binance_base_url: str = "https://api.binance.com"
+    market_poll_interval_seconds: float = Field(default=1.0, ge=0.1, le=60)
+    social_provider: str = "synthetic"
+    mastodon_base_url: str = "https://mastodon.social"
+    mastodon_access_token: str | None = None
+    social_rss_urls: Annotated[list[str], NoDecode] = []
+    social_poll_interval_seconds: float = Field(default=15.0, ge=1, le=900)
 
     @field_validator("allowed_origins", mode="before")
     @classmethod
@@ -87,6 +96,13 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             return [int(item.strip()) for item in value.split(",") if item.strip()]
         return cast(list[int], value)
+
+    @field_validator("live_market_symbols", "social_rss_urls", mode="before")
+    @classmethod
+    def parse_csv_list(cls, value: Any) -> list[str]:
+        if isinstance(value, str):
+            return [item.strip() for item in value.split(",") if item.strip()]
+        return cast(list[str], value)
 
     model_config = SettingsConfigDict(
         env_file=".env",

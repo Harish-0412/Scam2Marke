@@ -5,7 +5,6 @@ import orjson
 from aiokafka import AIOKafkaConsumer, TopicPartition
 
 from scam2market.config.settings import get_settings
-from scam2market.resilience.batching import bounded_batches
 from scam2market.schemas.events import CanonicalEvent
 
 
@@ -58,12 +57,32 @@ class EventConsumer:
 
     async def batches(self) -> AsyncIterator[list[ConsumedEvent]]:
         settings = get_settings()
-        async for batch in bounded_batches(
-            self.records(),
-            max_batch_size=settings.stream_batch_size,
-            max_wait_seconds=settings.stream_batch_wait_seconds,
-        ):
-            yield batch
+        timeout_ms = max(1, int(settings.stream_batch_wait_seconds * 1000))
+        while True:
+            records = await self._consumer.getmany(
+                timeout_ms=timeout_ms,
+                max_records=settings.stream_batch_size,
+            )
+            batch = [
+                ConsumedEvent(
+                    event=CanonicalEvent.model_validate(message.value),
+                    topic=message.topic,
+                    partition=message.partition,
+                    offset=message.offset,
+                )
+                for _, messages in records.items()
+                for message in messages
+            ]
+            if batch:
+                yield sorted(
+                    batch,
+                    key=lambda item: (
+                        item.event.event_time,
+                        item.topic,
+                        item.partition,
+                        item.offset,
+                    ),
+                )
 
     async def commit(self, record: ConsumedEvent | None = None) -> None:
         if record is None:

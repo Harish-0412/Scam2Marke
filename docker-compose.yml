@@ -247,7 +247,7 @@ services:
   market-ingestor:
     <<: *backend-service
     command: scam2market-market-ingestor
-    profiles: ["demo"]
+    profiles: ["demo", "live"]
     env_file:
       - "${SCAM2MARKET_ENV_FILE:-.env.example}"
     volumes:
@@ -260,6 +260,7 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
+    restart: on-failure
   explainability-service:
     <<: *backend-service
     command: uvicorn scam2market.intelligence.explainability_service:app --host 0.0.0.0 --port 8001
@@ -289,7 +290,7 @@ services:
   social-ingestor:
     <<: *backend-service
     command: scam2market-social-ingestor
-    profiles: ["demo"]
+    profiles: ["demo", "live"]
     env_file:
       - "${SCAM2MARKET_ENV_FILE:-.env.example}"
     volumes:
@@ -302,6 +303,7 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
+    restart: on-failure
 
   replay-scheduler:
     <<: *backend-service
