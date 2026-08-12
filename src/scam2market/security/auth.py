@@ -247,6 +247,8 @@ async def authorize_api_request(request: HTTPConnection, principal: CurrentPrinc
     required: tuple[str, ...]
     if method in {"GET", "HEAD", "OPTIONS"}:
         required = ("read",)
+    elif "/source-policies" in request.url.path:
+        required = ("source-policy:manage",)
     elif request.url.path.endswith("/decision") or "/models/" in request.url.path:
         required = ("policy:approve",)
     elif "/operations/model-drift" in request.url.path or "/surveillance" in request.url.path:

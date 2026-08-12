@@ -15,6 +15,8 @@ from scam2market.verification.schemas import (
     DisclosureCandidate,
     DisclosureChunk,
     DisclosureDocument,
+    EvidenceRelation,
+    VerificationEvidence,
     VerificationResult,
     VerificationSummary,
 )
@@ -46,19 +48,42 @@ class DisclosureIngestionService:
         self._index = vector_index
         self._chunk_characters = chunk_characters
 
-    async def ingest(self, document: DisclosureDocument) -> bool:
-        document = document.model_copy(
-            update={
-                "first_observed_at": document.first_observed_at or document.retrieved_at,
-                "ingested_at": document.ingested_at or document.retrieved_at,
-            }
-        )
-        assert document.first_observed_at is not None
-        assert document.ingested_at is not None
-        chunks = self._chunks(document)
-        persisted = await self._repository.persist_disclosure(document, chunks)
+    async def ingest(
+        self,
+        document: DisclosureDocument,
+        *,
+        assign_version: bool = False,
+        preserve_timestamps: bool = True,
+    ) -> bool:
+        first_observed_at = document.first_observed_at or document.retrieved_at
+        if assign_version:
+            persisted_document = await self._repository.persist_versioned_disclosure(
+                document,
+                self._chunks,
+                preserve_timestamps=preserve_timestamps,
+            )
+            if persisted_document is None:
+                return False
+            document = persisted_document
+            chunks = self._chunks(document)
+            persisted = True
+        else:
+            if not preserve_timestamps:
+                raise ValueError("live timestamp assignment requires atomic versioned persistence")
+            ingested_at = document.ingested_at or document.retrieved_at
+            document = document.model_copy(
+                update={
+                    "first_observed_at": first_observed_at,
+                    "ingested_at": ingested_at,
+                    "available_at": max(first_observed_at, ingested_at),
+                }
+            )
+            chunks = self._chunks(document)
+            persisted = await self._repository.persist_disclosure(document, chunks)
         if not persisted:
             return False
+        assert document.first_observed_at is not None
+        first_observed_at = document.first_observed_at
         for chunk in chunks:
             vector = await self._embedding.embed(chunk.text)
             try:
@@ -71,7 +96,7 @@ class DisclosureIngestionService:
                         "disclosure_id": str(document.disclosure_id),
                         "asset_id": document.asset_id,
                         "published_at": document.published_at.isoformat(),
-                        "first_observed_at": document.first_observed_at.isoformat(),
+                        "first_observed_at": first_observed_at.isoformat(),
                         "document_version": document.document_version,
                         "source_policy_version": document.source_policy_version,
                         "source": document.source,
@@ -180,26 +205,31 @@ class TimeBoundedClaimVerifier:
             for candidate, score in scored
             if score * candidate.reliability >= self._threshold
         ]
-        before = [item for item in matching if item[0].first_observed_at <= alert_time]
-        future = [item for item in matching if item[0].first_observed_at > alert_time]
-        conflict = [
-            item for item in before if _is_negated(claim.claim_text) != _is_negated(item[0].text)
-        ]
+        before = [item for item in matching if item[0].available_at <= alert_time]
+        future = [item for item in matching if item[0].available_at > alert_time]
+        conflict = [item for item in before if _conflict_reasons(claim, item[0])]
+        support = [item for item in before if not _conflict_reasons(claim, item[0])]
+        coverage = await self._repository.source_coverage(claim.asset_id, alert_time)
         if conflict:
             result = VerificationResult.conflicting
             risk, legitimate = 1.0, 0.0
-            evidence = conflict
+            evidence = support + conflict + future
             reason = "a time-valid source materially conflicts with the extracted claim"
-        elif before:
+        elif support:
             result = VerificationResult.supported_before_alert
-            risk, legitimate = 0.15, max(item[0].reliability for item in before)
-            evidence = before
+            risk, legitimate = 0.15, max(item[0].reliability for item in support)
+            evidence = support + future
             reason = "supporting disclosure existed at or before the alert cutoff"
         elif future:
             result = VerificationResult.supported_after_alert
             risk, legitimate = 0.75, 0.0
             evidence = future
             reason = "support appeared only after the alert cutoff and was not used retrospectively"
+        elif not bool(coverage.get("complete", True)):
+            result = VerificationResult.unknown
+            risk, legitimate = 0.50, 0.0
+            evidence = []
+            reason = "expected official sources were failed, stale, or incomplete"
         elif candidates:
             result = VerificationResult.unsupported
             risk, legitimate = 0.90, 0.0
@@ -220,6 +250,7 @@ class TimeBoundedClaimVerifier:
             except Exception:
                 explanation = None
         verified_at = datetime.now(tz=UTC)
+        structured_evidence = _verification_evidence(claim, matching, alert_time)
         return ClaimVerification(
             verification_id=uuid5(
                 NAMESPACE_URL,
@@ -235,7 +266,9 @@ class TimeBoundedClaimVerifier:
             ),
             retrieval_metadata={
                 "alert_cutoff": alert_time.isoformat(),
-                "temporal_filter": ("first_observed_at <= alert_time for contemporaneous support"),
+                "temporal_filter": "available_at <= alert_time for contemporaneous support",
+                "availability_rule": "available_at <= alert_time for contemporaneous support",
+                "coverage": coverage,
                 "source_policy_version": self.source_policy_version,
                 "candidate_count": len(candidates),
                 "matches": [
@@ -244,8 +277,10 @@ class TimeBoundedClaimVerifier:
                         "source_document_id": candidate.source_document_id,
                         "published_at": candidate.published_at.isoformat(),
                         "first_observed_at": candidate.first_observed_at.isoformat(),
+                        "ingested_at": candidate.ingested_at.isoformat(),
+                        "available_at": candidate.available_at.isoformat(),
                         "similarity": round(score, 6),
-                        "is_future": candidate.first_observed_at > alert_time,
+                        "is_future": candidate.available_at > alert_time,
                     }
                     for candidate, score in sorted(
                         matching, key=lambda item: (-item[1], str(item[0].chunk_id))
@@ -258,6 +293,7 @@ class TimeBoundedClaimVerifier:
             source_policy_version=self.source_policy_version,
             retrospective_only=result == VerificationResult.supported_after_alert,
             verified_at=verified_at,
+            evidence=structured_evidence,
         )
 
 
@@ -335,7 +371,11 @@ def disclosure_from_event(event: CanonicalEvent) -> DisclosureDocument:
         disclosure_id=UUID(
             str(
                 payload.get("disclosure_id")
-                or uuid5(NAMESPACE_URL, f"disclosure:{event.source}:{event.source_event_id}")
+                or uuid5(
+                    NAMESPACE_URL,
+                    f"disclosure:{event.source}:{event.source_event_id}:"
+                    f"{payload.get('document_version', 1)}:{content_hash}",
+                )
             )
         ),
         source=event.source,
@@ -354,6 +394,11 @@ def disclosure_from_event(event: CanonicalEvent) -> DisclosureDocument:
             else event.ingested_at
         ),
         ingested_at=event.processed_at or event.ingested_at,
+        available_at=(
+            datetime.fromisoformat(str(payload["available_at"]))
+            if payload.get("available_at")
+            else event.processed_at or event.ingested_at
+        ),
         document_version=int(payload.get("document_version", 1)),
         supersedes_disclosure_id=(
             UUID(str(payload["supersedes_disclosure_id"]))
@@ -363,6 +408,17 @@ def disclosure_from_event(event: CanonicalEvent) -> DisclosureDocument:
         source_policy_version=str(payload.get("source_policy_version", "official-sources-v1")),
         reliability=float(payload.get("reliability", 1.0)),
         content_hash=content_hash,
+        source_policy_id=(
+            UUID(str(payload["source_policy_id"])) if payload.get("source_policy_id") else None
+        ),
+        connector_run_id=(
+            UUID(str(payload["connector_run_id"])) if payload.get("connector_run_id") else None
+        ),
+        source_document_key=str(payload.get("source_document_key") or event.source_event_id),
+        version_status=str(payload.get("version_status", "CURRENT")),
+        etag=str(payload["etag"]) if payload.get("etag") else None,
+        last_modified=str(payload["last_modified"]) if payload.get("last_modified") else None,
+        signature_metadata=dict(payload.get("signature_metadata") or {}),
     )
 
 
@@ -421,6 +477,60 @@ def _string_set(value: object) -> set[str]:
 
 def _is_negated(text: str) -> bool:
     return bool(set(_TOKEN.findall(text.lower())) & _NEGATIONS)
+
+
+def _conflict_reasons(claim: Claim, candidate: DisclosureCandidate) -> list[str]:
+    reasons: list[str] = []
+    evidence = _canonical_claim(claim.asset_id, f"{candidate.title} {candidate.text}")
+    claim_polarity = claim.canonical_payload.get("polarity")
+    if claim_polarity is not None and evidence["polarity"] != claim_polarity:
+        reasons.append("POLARITY_MISMATCH")
+    claim_amounts = _string_set(claim.canonical_payload.get("amounts"))
+    evidence_amounts = _string_set(evidence.get("amounts"))
+    if claim_amounts and evidence_amounts and not claim_amounts & evidence_amounts:
+        reasons.append("AMOUNT_MISMATCH")
+    return reasons
+
+
+def _verification_evidence(
+    claim: Claim,
+    matching: list[tuple[DisclosureCandidate, float]],
+    alert_time: datetime,
+) -> list[VerificationEvidence]:
+    ranked = sorted(matching, key=lambda item: (-item[1], str(item[0].chunk_id)))
+    result: list[VerificationEvidence] = []
+    seen: set[tuple[UUID, EvidenceRelation]] = set()
+    for candidate, score in ranked:
+        conflicts = _conflict_reasons(claim, candidate)
+        eligible = candidate.available_at <= alert_time
+        relation = (
+            EvidenceRelation.retrospective
+            if not eligible
+            else EvidenceRelation.conflicting
+            if conflicts
+            else EvidenceRelation.supporting
+        )
+        key = (candidate.disclosure_id, relation)
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(
+            VerificationEvidence(
+                disclosure_id=candidate.disclosure_id,
+                relation=relation,
+                score=max(0.0, min(1.0, score * candidate.reliability)),
+                rank=len(result) + 1,
+                temporal_eligible=eligible,
+                reason_codes=conflicts
+                or (["AVAILABLE_AT_CUTOFF"] if eligible else ["AVAILABLE_AFTER_CUTOFF"]),
+                source_policy_id=candidate.source_policy_id,
+                source_policy_version=candidate.source_policy_version,
+                trust_score=candidate.reliability,
+                trust_tier=candidate.trust_tier,
+                license_snapshot=candidate.license_snapshot,
+            )
+        )
+    return result
 
 
 def _aggregate_result(verifications: list[ClaimVerification]) -> VerificationResult:

@@ -175,6 +175,18 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  disclosure-connector:
+    <<: *backend-service
+    command: scam2market-disclosure-connector
+    env_file:
+      - "${SCAM2MARKET_ENV_FILE:-.env.example}"
+    volumes:
+      - ./src:/app/src
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
   outbox-worker:
     <<: *backend-service
     command: scam2market-outbox-worker

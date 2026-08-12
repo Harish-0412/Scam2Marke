@@ -257,6 +257,102 @@
         "title": "AssetOverviewResponse",
         "type": "object"
       },
+      "CalibrationFitRequest": {
+        "properties": {
+          "model_artifact_id": {
+            "format": "uuid",
+            "title": "Model Artifact Id",
+            "type": "string"
+          },
+          "segment": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Segment",
+            "type": "object"
+          }
+        },
+        "required": [
+          "model_artifact_id"
+        ],
+        "title": "CalibrationFitRequest",
+        "type": "object"
+      },
+      "CalibrationLabelCreate": {
+        "properties": {
+          "alert_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alert Id"
+          },
+          "data_partition": {
+            "default": "CALIBRATION",
+            "enum": [
+              "CALIBRATION",
+              "HOLDOUT"
+            ],
+            "title": "Data Partition",
+            "type": "string"
+          },
+          "event_time": {
+            "format": "date-time",
+            "title": "Event Time",
+            "type": "string"
+          },
+          "model_family": {
+            "maxLength": 128,
+            "minLength": 2,
+            "title": "Model Family",
+            "type": "string"
+          },
+          "model_version": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Model Version",
+            "type": "string"
+          },
+          "outcome": {
+            "title": "Outcome",
+            "type": "boolean"
+          },
+          "raw_score": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Raw Score",
+            "type": "number"
+          },
+          "reason": {
+            "maxLength": 2000,
+            "minLength": 5,
+            "title": "Reason",
+            "type": "string"
+          },
+          "segment": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Segment",
+            "type": "object"
+          }
+        },
+        "required": [
+          "model_family",
+          "model_version",
+          "raw_score",
+          "outcome",
+          "event_time",
+          "reason"
+        ],
+        "title": "CalibrationLabelCreate",
+        "type": "object"
+      },
       "CampaignDetailResponse": {
         "properties": {
           "alerts": {
@@ -387,6 +483,214 @@
         "title": "CampaignResponse",
         "type": "object"
       },
+      "ChannelCreate": {
+        "properties": {
+          "channel_type": {
+            "enum": [
+              "SLACK",
+              "TEAMS",
+              "EMAIL",
+              "WEBHOOK"
+            ],
+            "title": "Channel Type",
+            "type": "string"
+          },
+          "config": {
+            "additionalProperties": true,
+            "title": "Config",
+            "type": "object"
+          },
+          "endpoint": {
+            "maxLength": 2000,
+            "minLength": 3,
+            "title": "Endpoint",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 128,
+            "minLength": 2,
+            "title": "Name",
+            "type": "string"
+          },
+          "secret": {
+            "anyOf": [
+              {
+                "minLength": 16,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Secret"
+          }
+        },
+        "required": [
+          "name",
+          "channel_type",
+          "endpoint"
+        ],
+        "title": "ChannelCreate",
+        "type": "object"
+      },
+      "ClaimResponse": {
+        "properties": {
+          "asset_id": {
+            "title": "Asset Id",
+            "type": "string"
+          },
+          "canonical_json": {
+            "additionalProperties": true,
+            "title": "Canonical Json",
+            "type": "object"
+          },
+          "claim_hash": {
+            "title": "Claim Hash",
+            "type": "string"
+          },
+          "claim_id": {
+            "format": "uuid",
+            "title": "Claim Id",
+            "type": "string"
+          },
+          "claim_text": {
+            "title": "Claim Text",
+            "type": "string"
+          },
+          "claim_type": {
+            "title": "Claim Type",
+            "type": "string"
+          },
+          "extracted_at": {
+            "format": "date-time",
+            "title": "Extracted At",
+            "type": "string"
+          },
+          "extractor_version": {
+            "title": "Extractor Version",
+            "type": "string"
+          },
+          "narrative_id": {
+            "format": "uuid",
+            "title": "Narrative Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "claim_id",
+          "narrative_id",
+          "asset_id",
+          "claim_text",
+          "claim_type",
+          "canonical_json",
+          "claim_hash",
+          "extracted_at",
+          "extractor_version"
+        ],
+        "title": "ClaimResponse",
+        "type": "object"
+      },
+      "ClaimVerificationResponse": {
+        "properties": {
+          "alert_time": {
+            "format": "date-time",
+            "title": "Alert Time",
+            "type": "string"
+          },
+          "claim_id": {
+            "format": "uuid",
+            "title": "Claim Id",
+            "type": "string"
+          },
+          "claim_risk": {
+            "title": "Claim Risk",
+            "type": "number"
+          },
+          "deterministic_reason": {
+            "title": "Deterministic Reason",
+            "type": "string"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/VerificationEvidenceResponse"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "evidence_document_ids_json": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidence Document Ids Json",
+            "type": "array"
+          },
+          "legitimate_event_score": {
+            "title": "Legitimate Event Score",
+            "type": "number"
+          },
+          "llm_explanation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Llm Explanation"
+          },
+          "result": {
+            "title": "Result",
+            "type": "string"
+          },
+          "retrieval_metadata_json": {
+            "additionalProperties": true,
+            "title": "Retrieval Metadata Json",
+            "type": "object"
+          },
+          "retrospective_only": {
+            "title": "Retrospective Only",
+            "type": "boolean"
+          },
+          "source_policy_version": {
+            "title": "Source Policy Version",
+            "type": "string"
+          },
+          "verification_id": {
+            "format": "uuid",
+            "title": "Verification Id",
+            "type": "string"
+          },
+          "verified_at": {
+            "format": "date-time",
+            "title": "Verified At",
+            "type": "string"
+          },
+          "verifier_version": {
+            "title": "Verifier Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "verification_id",
+          "claim_id",
+          "alert_time",
+          "result",
+          "claim_risk",
+          "legitimate_event_score",
+          "evidence_document_ids_json",
+          "retrieval_metadata_json",
+          "deterministic_reason",
+          "llm_explanation",
+          "verifier_version",
+          "source_policy_version",
+          "retrospective_only",
+          "verified_at",
+          "evidence"
+        ],
+        "title": "ClaimVerificationResponse",
+        "type": "object"
+      },
       "ConfigResponse": {
         "properties": {
           "api_contract": {
@@ -416,6 +720,107 @@
           "api_contract"
         ],
         "title": "ConfigResponse",
+        "type": "object"
+      },
+      "ConnectorRunResponse": {
+        "properties": {
+          "checkpoint_json": {
+            "additionalProperties": true,
+            "title": "Checkpoint Json",
+            "type": "object"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "connector_run_id": {
+            "format": "uuid",
+            "title": "Connector Run Id",
+            "type": "string"
+          },
+          "error_count": {
+            "title": "Error Count",
+            "type": "integer"
+          },
+          "error_json": {
+            "additionalProperties": true,
+            "title": "Error Json",
+            "type": "object"
+          },
+          "fetched_count": {
+            "title": "Fetched Count",
+            "type": "integer"
+          },
+          "ingested_count": {
+            "title": "Ingested Count",
+            "type": "integer"
+          },
+          "lag_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lag Seconds"
+          },
+          "source_policy_id": {
+            "format": "uuid",
+            "title": "Source Policy Id",
+            "type": "string"
+          },
+          "source_watermark": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Watermark"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "unchanged_count": {
+            "title": "Unchanged Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "connector_run_id",
+          "source_policy_id",
+          "status",
+          "started_at",
+          "completed_at",
+          "checkpoint_json",
+          "fetched_count",
+          "ingested_count",
+          "unchanged_count",
+          "error_count",
+          "lag_seconds",
+          "error_json",
+          "source_watermark"
+        ],
+        "title": "ConnectorRunResponse",
         "type": "object"
       },
       "DependencyStatus": {
@@ -456,6 +861,207 @@
           "required"
         ],
         "title": "DependencyStatus",
+        "type": "object"
+      },
+      "DisclosureResponse": {
+        "properties": {
+          "asset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asset Id"
+          },
+          "available_at": {
+            "format": "date-time",
+            "title": "Available At",
+            "type": "string"
+          },
+          "body": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Body"
+          },
+          "connector_run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connector Run Id"
+          },
+          "content_hash": {
+            "title": "Content Hash",
+            "type": "string"
+          },
+          "disclosure_id": {
+            "format": "uuid",
+            "title": "Disclosure Id",
+            "type": "string"
+          },
+          "document_version": {
+            "title": "Document Version",
+            "type": "integer"
+          },
+          "etag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Etag"
+          },
+          "first_observed_at": {
+            "format": "date-time",
+            "title": "First Observed At",
+            "type": "string"
+          },
+          "ingested_at": {
+            "format": "date-time",
+            "title": "Ingested At",
+            "type": "string"
+          },
+          "last_modified": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Modified"
+          },
+          "published_at": {
+            "format": "date-time",
+            "title": "Published At",
+            "type": "string"
+          },
+          "reliability": {
+            "title": "Reliability",
+            "type": "number"
+          },
+          "retrieved_at": {
+            "format": "date-time",
+            "title": "Retrieved At",
+            "type": "string"
+          },
+          "signature_metadata_json": {
+            "additionalProperties": true,
+            "title": "Signature Metadata Json",
+            "type": "object"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "source_document_id": {
+            "title": "Source Document Id",
+            "type": "string"
+          },
+          "source_document_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Document Key"
+          },
+          "source_policy_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Policy Id"
+          },
+          "source_policy_version": {
+            "title": "Source Policy Version",
+            "type": "string"
+          },
+          "supersedes_disclosure_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supersedes Disclosure Id"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          },
+          "version_status": {
+            "title": "Version Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "disclosure_id",
+          "source",
+          "source_document_id",
+          "source_document_key",
+          "source_policy_id",
+          "connector_run_id",
+          "asset_id",
+          "title",
+          "body",
+          "url",
+          "published_at",
+          "retrieved_at",
+          "first_observed_at",
+          "ingested_at",
+          "available_at",
+          "document_version",
+          "version_status",
+          "supersedes_disclosure_id",
+          "source_policy_version",
+          "reliability",
+          "content_hash",
+          "etag",
+          "last_modified",
+          "signature_metadata_json"
+        ],
+        "title": "DisclosureResponse",
         "type": "object"
       },
       "DriftEventCreate": {
@@ -500,6 +1106,72 @@
           "threshold"
         ],
         "title": "DriftEventCreate",
+        "type": "object"
+      },
+      "FalsePositiveCreate": {
+        "properties": {
+          "alert_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alert Id"
+          },
+          "asset_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asset Id"
+          },
+          "model_family": {
+            "maxLength": 128,
+            "minLength": 2,
+            "title": "Model Family",
+            "type": "string"
+          },
+          "model_version": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Model Version",
+            "type": "string"
+          },
+          "notes": {
+            "maxLength": 4000,
+            "minLength": 5,
+            "title": "Notes",
+            "type": "string"
+          },
+          "reason_code": {
+            "enum": [
+              "LEGITIMATE_EVENT",
+              "ASSET_AMBIGUITY",
+              "DATA_QUALITY",
+              "THRESHOLD_TOO_LOW",
+              "DUPLICATE_CAMPAIGN",
+              "OTHER"
+            ],
+            "title": "Reason Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "model_family",
+          "model_version",
+          "reason_code",
+          "notes"
+        ],
+        "title": "FalsePositiveCreate",
         "type": "object"
       },
       "FeedbackAdjudication": {
@@ -825,6 +1497,30 @@
         "title": "InvestigationUpdate",
         "type": "object"
       },
+      "MembershipCreate": {
+        "properties": {
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/Role"
+            },
+            "minItems": 1,
+            "title": "Roles",
+            "type": "array"
+          },
+          "subject": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Subject",
+            "type": "string"
+          }
+        },
+        "required": [
+          "subject",
+          "roles"
+        ],
+        "title": "MembershipCreate",
+        "type": "object"
+      },
       "ModelArtifactCreate": {
         "properties": {
           "artifact_hash": {
@@ -1012,6 +1708,32 @@
         "title": "PolicyProposalCreate",
         "type": "object"
       },
+      "PromotionRequest": {
+        "properties": {
+          "apply_alias": {
+            "default": false,
+            "title": "Apply Alias",
+            "type": "boolean"
+          },
+          "candidate_artifact_id": {
+            "format": "uuid",
+            "title": "Candidate Artifact Id",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 2000,
+            "minLength": 5,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "candidate_artifact_id",
+          "reason"
+        ],
+        "title": "PromotionRequest",
+        "type": "object"
+      },
       "ReadinessResponse": {
         "properties": {
           "dependencies": {
@@ -1072,6 +1794,18 @@
         },
         "title": "ReplayCreate",
         "type": "object"
+      },
+      "Role": {
+        "enum": [
+          "PLATFORM_ADMIN",
+          "TENANT_ADMIN",
+          "ANALYST",
+          "REVIEWER",
+          "VIEWER",
+          "SERVICE"
+        ],
+        "title": "Role",
+        "type": "string"
       },
       "ScoreResponse": {
         "properties": {
@@ -1190,6 +1924,41 @@
         "title": "ScoreResponse",
         "type": "object"
       },
+      "ServiceAccountCreate": {
+        "properties": {
+          "name": {
+            "maxLength": 128,
+            "minLength": 2,
+            "title": "Name",
+            "type": "string"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/Role"
+            },
+            "title": "Roles",
+            "type": "array"
+          },
+          "ttl_days": {
+            "anyOf": [
+              {
+                "maximum": 365.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ttl Days"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "ServiceAccountCreate",
+        "type": "object"
+      },
       "ShadowScoreRequest": {
         "properties": {
           "feature_revision": {
@@ -1288,6 +2057,532 @@
         "title": "SourceHealthResponse",
         "type": "object"
       },
+      "SourcePolicyInput": {
+        "properties": {
+          "canonical_domains": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Canonical Domains",
+            "type": "array"
+          },
+          "connector_config": {
+            "additionalProperties": true,
+            "title": "Connector Config",
+            "type": "object"
+          },
+          "connector_type": {
+            "pattern": "^(RSS_ATOM|GITHUB_RELEASES|SEC_EDGAR)$",
+            "title": "Connector Type",
+            "type": "string"
+          },
+          "effective_from": {
+            "format": "date-time",
+            "title": "Effective From",
+            "type": "string"
+          },
+          "effective_to": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective To"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "license_allowed_usages": {
+            "items": {
+              "type": "string"
+            },
+            "title": "License Allowed Usages",
+            "type": "array"
+          },
+          "license_attribution": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "License Attribution"
+          },
+          "license_display_allowed": {
+            "default": false,
+            "title": "License Display Allowed",
+            "type": "boolean"
+          },
+          "license_retention_days": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "License Retention Days"
+          },
+          "name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "policy_version": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Policy Version",
+            "type": "string"
+          },
+          "source_class": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Source Class",
+            "type": "string"
+          },
+          "source_type": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Source Type",
+            "type": "string"
+          },
+          "trust_rationale": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trust Rationale"
+          },
+          "trust_score": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Trust Score",
+            "type": "number"
+          },
+          "trust_tier": {
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Trust Tier",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "source_class",
+          "source_type",
+          "connector_type",
+          "connector_config",
+          "trust_score",
+          "trust_tier",
+          "license_allowed_usages",
+          "policy_version",
+          "canonical_domains",
+          "effective_from"
+        ],
+        "title": "SourcePolicyInput",
+        "type": "object"
+      },
+      "SourcePolicyPatch": {
+        "properties": {
+          "connector_config": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connector Config"
+          },
+          "effective_to": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective To"
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          },
+          "license_allowed_usages": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "License Allowed Usages"
+          },
+          "license_attribution": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "License Attribution"
+          },
+          "license_display_allowed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "License Display Allowed"
+          },
+          "license_retention_days": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "License Retention Days"
+          },
+          "policy_version": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Policy Version",
+            "type": "string"
+          },
+          "trust_rationale": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trust Rationale"
+          },
+          "trust_score": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trust Score"
+          },
+          "trust_tier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trust Tier"
+          }
+        },
+        "required": [
+          "policy_version"
+        ],
+        "title": "SourcePolicyPatch",
+        "type": "object"
+      },
+      "SourcePolicyResponse": {
+        "properties": {
+          "canonical_domains": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Canonical Domains",
+            "type": "array"
+          },
+          "connector_config": {
+            "additionalProperties": true,
+            "title": "Connector Config",
+            "type": "object"
+          },
+          "connector_type": {
+            "pattern": "^(RSS_ATOM|GITHUB_RELEASES|SEC_EDGAR)$",
+            "title": "Connector Type",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "title": "Created By",
+            "type": "string"
+          },
+          "effective_from": {
+            "format": "date-time",
+            "title": "Effective From",
+            "type": "string"
+          },
+          "effective_to": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective To"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "license_allowed_usages": {
+            "items": {
+              "type": "string"
+            },
+            "title": "License Allowed Usages",
+            "type": "array"
+          },
+          "license_attribution": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "License Attribution"
+          },
+          "license_display_allowed": {
+            "default": false,
+            "title": "License Display Allowed",
+            "type": "boolean"
+          },
+          "license_retention_days": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "License Retention Days"
+          },
+          "name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "policy_version": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Policy Version",
+            "type": "string"
+          },
+          "source_class": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Source Class",
+            "type": "string"
+          },
+          "source_policy_id": {
+            "format": "uuid",
+            "title": "Source Policy Id",
+            "type": "string"
+          },
+          "source_type": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Source Type",
+            "type": "string"
+          },
+          "trust_rationale": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trust Rationale"
+          },
+          "trust_score": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Trust Score",
+            "type": "number"
+          },
+          "trust_tier": {
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Trust Tier",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "updated_by": {
+            "title": "Updated By",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "source_class",
+          "source_type",
+          "connector_type",
+          "connector_config",
+          "trust_score",
+          "trust_tier",
+          "license_allowed_usages",
+          "policy_version",
+          "canonical_domains",
+          "effective_from",
+          "source_policy_id",
+          "created_by",
+          "updated_by",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "SourcePolicyResponse",
+        "type": "object"
+      },
+      "SubscriptionCreate": {
+        "properties": {
+          "alert_types": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Alert Types",
+            "type": "array"
+          },
+          "asset_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Asset Ids",
+            "type": "array"
+          },
+          "channel_id": {
+            "format": "uuid",
+            "title": "Channel Id",
+            "type": "string"
+          },
+          "minimum_severity": {
+            "default": "HIGH",
+            "enum": [
+              "INFO",
+              "WATCH",
+              "HIGH",
+              "CRITICAL"
+            ],
+            "title": "Minimum Severity",
+            "type": "string"
+          }
+        },
+        "required": [
+          "channel_id"
+        ],
+        "title": "SubscriptionCreate",
+        "type": "object"
+      },
+      "TenantCreate": {
+        "properties": {
+          "name": {
+            "maxLength": 255,
+            "minLength": 2,
+            "title": "Name",
+            "type": "string"
+          },
+          "tenant_id": {
+            "pattern": "^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$",
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "name"
+        ],
+        "title": "TenantCreate",
+        "type": "object"
+      },
+      "TimelineEvent": {
+        "properties": {
+          "data": {
+            "additionalProperties": true,
+            "title": "Data",
+            "type": "object"
+          },
+          "event_time": {
+            "format": "date-time",
+            "title": "Event Time",
+            "type": "string"
+          },
+          "event_type": {
+            "title": "Event Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_type",
+          "event_time",
+          "data"
+        ],
+        "title": "TimelineEvent",
+        "type": "object"
+      },
       "TimelineEventResponse": {
         "properties": {
           "data": {
@@ -1351,6 +2646,100 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "VerificationEvidenceResponse": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "disclosure_id": {
+            "format": "uuid",
+            "title": "Disclosure Id",
+            "type": "string"
+          },
+          "license_snapshot_json": {
+            "additionalProperties": true,
+            "title": "License Snapshot Json",
+            "type": "object"
+          },
+          "rank": {
+            "title": "Rank",
+            "type": "integer"
+          },
+          "reason_codes_json": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reason Codes Json",
+            "type": "array"
+          },
+          "relation": {
+            "title": "Relation",
+            "type": "string"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "source_policy_id_snapshot": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Policy Id Snapshot"
+          },
+          "source_policy_version_snapshot": {
+            "title": "Source Policy Version Snapshot",
+            "type": "string"
+          },
+          "temporal_eligible": {
+            "title": "Temporal Eligible",
+            "type": "boolean"
+          },
+          "trust_score_snapshot": {
+            "title": "Trust Score Snapshot",
+            "type": "number"
+          },
+          "trust_tier_snapshot": {
+            "title": "Trust Tier Snapshot",
+            "type": "string"
+          },
+          "verification_evidence_id": {
+            "format": "uuid",
+            "title": "Verification Evidence Id",
+            "type": "string"
+          },
+          "verification_id": {
+            "format": "uuid",
+            "title": "Verification Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "verification_evidence_id",
+          "verification_id",
+          "disclosure_id",
+          "relation",
+          "score",
+          "rank",
+          "temporal_eligible",
+          "reason_codes_json",
+          "source_policy_id_snapshot",
+          "source_policy_version_snapshot",
+          "trust_score_snapshot",
+          "trust_tier_snapshot",
+          "license_snapshot_json",
+          "created_at"
+        ],
+        "title": "VerificationEvidenceResponse",
         "type": "object"
       },
       "WatchlistAssetCreate": {
@@ -1670,6 +3059,53 @@
         "summary": "Acknowledge Alert",
         "tags": [
           "analyst"
+        ]
+      }
+    },
+    "/api/v1/alerts/{alert_id}/claims": {
+      "get": {
+        "operationId": "alert_claims_api_v1_alerts__alert_id__claims_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "alert_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Alert Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ClaimResponse"
+                  },
+                  "title": "Response Alert Claims Api V1 Alerts  Alert Id  Claims Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Alert Claims",
+        "tags": [
+          "official verification"
         ]
       }
     },
@@ -2016,6 +3452,281 @@
         ]
       }
     },
+    "/api/v1/auth/me": {
+      "get": {
+        "operationId": "get_current_identity_api_v1_auth_me_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Current Identity Api V1 Auth Me Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Current Identity",
+        "tags": [
+          "authentication"
+        ]
+      }
+    },
+    "/api/v1/auth/memberships": {
+      "post": {
+        "operationId": "create_membership_api_v1_auth_memberships_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MembershipCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Membership Api V1 Auth Memberships Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Membership",
+        "tags": [
+          "authentication"
+        ]
+      }
+    },
+    "/api/v1/auth/service-accounts": {
+      "get": {
+        "operationId": "list_service_accounts_api_v1_auth_service_accounts_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Service Accounts Api V1 Auth Service Accounts Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Service Accounts",
+        "tags": [
+          "authentication"
+        ]
+      },
+      "post": {
+        "operationId": "create_service_account_api_v1_auth_service_accounts_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceAccountCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Service Account Api V1 Auth Service Accounts Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Service Account",
+        "tags": [
+          "authentication"
+        ]
+      }
+    },
+    "/api/v1/auth/service-accounts/{account_id}/keys/{key_id}": {
+      "delete": {
+        "operationId": "revoke_service_key_api_v1_auth_service_accounts__account_id__keys__key_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Account Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "key_id",
+            "required": true,
+            "schema": {
+              "title": "Key Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revoke Service Key",
+        "tags": [
+          "authentication"
+        ]
+      }
+    },
+    "/api/v1/auth/service-accounts/{account_id}/keys/{key_id}/rotate": {
+      "post": {
+        "operationId": "rotate_service_key_api_v1_auth_service_accounts__account_id__keys__key_id__rotate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Account Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "key_id",
+            "required": true,
+            "schema": {
+              "title": "Key Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Rotate Service Key Api V1 Auth Service Accounts  Account Id  Keys  Key Id  Rotate Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rotate Service Key",
+        "tags": [
+          "authentication"
+        ]
+      }
+    },
+    "/api/v1/auth/tenants": {
+      "post": {
+        "operationId": "create_tenant_api_v1_auth_tenants_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TenantCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Tenant Api V1 Auth Tenants Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Tenant",
+        "tags": [
+          "authentication"
+        ]
+      }
+    },
     "/api/v1/campaigns": {
       "get": {
         "operationId": "campaigns_api_v1_campaigns_get",
@@ -2222,6 +3933,96 @@
         ]
       }
     },
+    "/api/v1/claims/{claim_id}": {
+      "get": {
+        "operationId": "claim_detail_api_v1_claims__claim_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "claim_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Claim Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Claim Detail",
+        "tags": [
+          "official verification"
+        ]
+      }
+    },
+    "/api/v1/claims/{claim_id}/verification": {
+      "get": {
+        "operationId": "claim_verification_api_v1_claims__claim_id__verification_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "claim_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Claim Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ClaimVerificationResponse"
+                  },
+                  "title": "Response Claim Verification Api V1 Claims  Claim Id  Verification Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Claim Verification",
+        "tags": [
+          "official verification"
+        ]
+      }
+    },
     "/api/v1/config": {
       "get": {
         "operationId": "config_api_v1_config_get",
@@ -2240,6 +4041,96 @@
         "summary": "Config",
         "tags": [
           "health"
+        ]
+      }
+    },
+    "/api/v1/disclosures/{disclosure_id}": {
+      "get": {
+        "operationId": "disclosure_detail_api_v1_disclosures__disclosure_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "disclosure_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Disclosure Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DisclosureResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Disclosure Detail",
+        "tags": [
+          "official verification"
+        ]
+      }
+    },
+    "/api/v1/disclosures/{disclosure_id}/versions": {
+      "get": {
+        "operationId": "disclosure_versions_api_v1_disclosures__disclosure_id__versions_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "disclosure_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Disclosure Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DisclosureResponse"
+                  },
+                  "title": "Response Disclosure Versions Api V1 Disclosures  Disclosure Id  Versions Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Disclosure Versions",
+        "tags": [
+          "official verification"
         ]
       }
     },
@@ -2305,6 +4196,110 @@
         "tags": [
           "evidence",
           "investigations"
+        ]
+      }
+    },
+    "/api/v1/false-positive-reports": {
+      "get": {
+        "operationId": "list_false_positive_reports_api_v1_false_positive_reports_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List False Positive Reports Api V1 False Positive Reports Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List False Positive Reports",
+        "tags": [
+          "model governance",
+          "feedback"
+        ]
+      },
+      "post": {
+        "operationId": "create_false_positive_report_api_v1_false_positive_reports_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Actor-ID",
+            "required": true,
+            "schema": {
+              "title": "X-Actor-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FalsePositiveCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create False Positive Report Api V1 False Positive Reports Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create False Positive Report",
+        "tags": [
+          "model governance",
+          "feedback"
         ]
       }
     },
@@ -2973,6 +4968,61 @@
         ]
       }
     },
+    "/api/v1/model-governance/labels": {
+      "post": {
+        "operationId": "create_calibration_label_api_v1_model_governance_labels_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Actor-ID",
+            "required": true,
+            "schema": {
+              "title": "X-Actor-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CalibrationLabelCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Calibration Label Api V1 Model Governance Labels Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Calibration Label",
+        "tags": [
+          "model governance",
+          "feedback"
+        ]
+      }
+    },
     "/api/v1/models/artifacts": {
       "post": {
         "operationId": "register_model_artifact_api_v1_models_artifacts_post",
@@ -3026,6 +5076,116 @@
           "replays",
           "evaluation",
           "models"
+        ]
+      }
+    },
+    "/api/v1/models/governance/calibrations": {
+      "post": {
+        "operationId": "fit_calibration_api_v1_models_governance_calibrations_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Actor-ID",
+            "required": true,
+            "schema": {
+              "title": "X-Actor-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CalibrationFitRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Fit Calibration Api V1 Models Governance Calibrations Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Fit Calibration",
+        "tags": [
+          "model governance",
+          "feedback"
+        ]
+      }
+    },
+    "/api/v1/models/governance/promotions": {
+      "post": {
+        "operationId": "evaluate_promotion_api_v1_models_governance_promotions_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Actor-ID",
+            "required": true,
+            "schema": {
+              "title": "X-Actor-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromotionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Evaluate Promotion Api V1 Models Governance Promotions Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Evaluate Promotion",
+        "tags": [
+          "model governance",
+          "feedback"
         ]
       }
     },
@@ -3143,6 +5303,182 @@
         "summary": "Narrative Detail",
         "tags": [
           "analyst"
+        ]
+      }
+    },
+    "/api/v1/notifications/channels": {
+      "get": {
+        "operationId": "list_channels_api_v1_notifications_channels_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Channels Api V1 Notifications Channels Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Channels",
+        "tags": [
+          "notifications"
+        ]
+      },
+      "post": {
+        "operationId": "create_channel_api_v1_notifications_channels_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChannelCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Channel Api V1 Notifications Channels Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Channel",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/deliveries": {
+      "get": {
+        "operationId": "list_deliveries_api_v1_notifications_deliveries_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Deliveries Api V1 Notifications Deliveries Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Deliveries",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/subscriptions": {
+      "post": {
+        "operationId": "create_subscription_api_v1_notifications_subscriptions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubscriptionCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Subscription Api V1 Notifications Subscriptions Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Subscription",
+        "tags": [
+          "notifications"
         ]
       }
     },
@@ -3418,6 +5754,60 @@
           }
         },
         "summary": "Decide Policy Proposal",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/api/v1/operations/worker-checkpoints": {
+      "get": {
+        "operationId": "list_worker_checkpoints_api_v1_operations_worker_checkpoints_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "consumer_group",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Consumer Group"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Worker Checkpoints Api V1 Operations Worker Checkpoints Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Worker Checkpoints",
         "tags": [
           "operations"
         ]
@@ -3973,6 +6363,88 @@
         ]
       }
     },
+    "/api/v1/source-connectors/runs": {
+      "get": {
+        "operationId": "connector_runs_api_v1_source_connectors_runs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "source_policy_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source Policy Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ConnectorRunResponse"
+                  },
+                  "title": "Response Connector Runs Api V1 Source Connectors Runs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Connector Runs",
+        "tags": [
+          "official verification"
+        ]
+      }
+    },
     "/api/v1/source-health": {
       "get": {
         "operationId": "source_health_api_v1_source_health_get",
@@ -3991,6 +6463,123 @@
         "summary": "Source Health",
         "tags": [
           "health"
+        ]
+      }
+    },
+    "/api/v1/source-policies": {
+      "get": {
+        "operationId": "source_policies_api_v1_source_policies_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SourcePolicyResponse"
+                  },
+                  "title": "Response Source Policies Api V1 Source Policies Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Source Policies",
+        "tags": [
+          "official verification"
+        ]
+      },
+      "post": {
+        "operationId": "create_source_policy_api_v1_source_policies_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SourcePolicyInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourcePolicyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Source Policy",
+        "tags": [
+          "official verification"
+        ]
+      }
+    },
+    "/api/v1/source-policies/{source_policy_id}": {
+      "patch": {
+        "operationId": "patch_source_policy_api_v1_source_policies__source_policy_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_policy_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Policy Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SourcePolicyPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourcePolicyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Patch Source Policy",
+        "tags": [
+          "official verification"
         ]
       }
     },
@@ -4033,6 +6622,123 @@
         "summary": "Alert Sse",
         "tags": [
           "campaigns"
+        ]
+      }
+    },
+    "/api/v1/verification/timeline": {
+      "get": {
+        "operationId": "verification_timeline_api_v1_verification_timeline_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "claim_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Claim Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "source_policy_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source Policy Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "start",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Start"
+            }
+          },
+          {
+            "in": "query",
+            "name": "end",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "End"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TimelineEvent"
+                  },
+                  "title": "Response Verification Timeline Api V1 Verification Timeline Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Verification Timeline",
+        "tags": [
+          "official verification"
         ]
       }
     },

@@ -783,7 +783,10 @@ class DisclosureModel(TimestampMixin, Base):
     __tablename__ = "disclosures"
     __table_args__ = (
         UniqueConstraint(
-            "source", "source_document_id", "document_version", name="uq_disclosure_version"
+            "logical_source_key",
+            "source_document_key",
+            "document_version",
+            name="uq_disclosure_logical_version",
         ),
     )
 
@@ -809,6 +812,21 @@ class DisclosureModel(TimestampMixin, Base):
     source_policy_version: Mapped[str] = mapped_column(String(64), nullable=False)
     reliability: Mapped[float] = mapped_column(Float, nullable=False)
     content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_policy_id: Mapped[PyUUID | None] = mapped_column(
+        ForeignKey("source_policies.source_policy_id", ondelete="SET NULL"), index=True
+    )
+    connector_run_id: Mapped[PyUUID | None] = mapped_column(
+        ForeignKey("source_connector_runs.connector_run_id", ondelete="SET NULL"), index=True
+    )
+    source_document_key: Mapped[str] = mapped_column(String(500), index=True)
+    logical_source_key: Mapped[str] = mapped_column(String(500), index=True)
+    version_status: Mapped[str] = mapped_column(String(32), nullable=False, default="CURRENT")
+    available_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+    etag: Mapped[str | None] = mapped_column(String(500))
+    last_modified: Mapped[str | None] = mapped_column(String(255))
+    signature_metadata_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
 
 
 class DisclosureChunkModel(Base):
@@ -868,6 +886,91 @@ class ClaimVerificationModel(Base):
     source_policy_version: Mapped[str] = mapped_column(String(64), nullable=False)
     retrospective_only: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     verified_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class SourcePolicyModel(TimestampMixin, Base):
+    __tablename__ = "source_policies"
+    __table_args__ = (UniqueConstraint("name", "policy_version", name="uq_source_policy_version"),)
+
+    source_policy_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4, server_default=func.gen_random_uuid()
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    source_class: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    connector_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    connector_config_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    trust_score: Mapped[float] = mapped_column(Float, nullable=False)
+    trust_tier: Mapped[str] = mapped_column(String(32), nullable=False)
+    trust_rationale: Mapped[str | None] = mapped_column(Text)
+    license_allowed_usages_json: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    license_retention_days: Mapped[int | None] = mapped_column(Integer)
+    license_attribution: Mapped[str | None] = mapped_column(Text)
+    license_display_allowed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    policy_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    canonical_domains_json: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    effective_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    effective_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_by: Mapped[str] = mapped_column(String(128), nullable=False)
+    updated_by: Mapped[str] = mapped_column(String(128), nullable=False)
+
+
+class SourceConnectorRunModel(Base):
+    __tablename__ = "source_connector_runs"
+
+    connector_run_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4, server_default=func.gen_random_uuid()
+    )
+    source_policy_id: Mapped[PyUUID] = mapped_column(
+        ForeignKey("source_policies.source_policy_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    status: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    checkpoint_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    fetched_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    ingested_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    unchanged_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    error_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    lag_seconds: Mapped[float | None] = mapped_column(Float)
+    error_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    source_watermark: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    max_staleness_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=86400)
+
+
+class VerificationEvidenceModel(Base):
+    __tablename__ = "verification_evidence"
+    __table_args__ = (
+        UniqueConstraint(
+            "verification_id", "disclosure_id", "relation", name="uq_verification_evidence"
+        ),
+    )
+
+    verification_evidence_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4, server_default=func.gen_random_uuid()
+    )
+    verification_id: Mapped[PyUUID] = mapped_column(
+        ForeignKey("claim_verifications.verification_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    disclosure_id: Mapped[PyUUID] = mapped_column(
+        ForeignKey("disclosures.disclosure_id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    relation: Mapped[str] = mapped_column(String(32), nullable=False)
+    score: Mapped[float] = mapped_column(Float, nullable=False)
+    rank: Mapped[int] = mapped_column(Integer, nullable=False)
+    temporal_eligible: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    reason_codes_json: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    source_policy_id_snapshot: Mapped[PyUUID | None] = mapped_column(UUID(as_uuid=True))
+    source_policy_version_snapshot: Mapped[str] = mapped_column(String(64), nullable=False)
+    trust_score_snapshot: Mapped[float] = mapped_column(Float, nullable=False)
+    trust_tier_snapshot: Mapped[str] = mapped_column(String(32), nullable=False)
+    license_snapshot_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 # New models for Phase 9 enhancements

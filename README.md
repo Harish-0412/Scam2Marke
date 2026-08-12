@@ -4,7 +4,7 @@ Scam2Market is an event-time-aware intelligence backend for detecting suspected 
 
 The project is built as a production-shaped FastAPI backend with deterministic replay, real-time alerting, tenant-aware access control, model governance, evidence preservation, and deployable infrastructure references. It is designed for an analyst dashboard or external client to connect through stable REST, SSE, and WebSocket APIs.
 
-> Current boundary: the backend is ready for frontend integration and reproducible local demonstrations. Phase 8 still needs production official-source disclosure/news connectors and richer analyst-facing claim-verification evidence views before the intelligence layer should be treated as complete production coverage.
+> Current boundary: Phase 8 implements configurable official RSS/Atom, GitHub Releases, and SEC EDGAR recent-submission connectors plus analyst verification APIs. Feed/repository/CIK registrations, credentials, licensed-provider agreements, retention and attribution decisions, and real-world operational validation remain environment-owned. The repository does not bundle every regulator or licensed provider.
 
 ## Table Of Contents
 
@@ -68,7 +68,7 @@ The system is useful for:
 - It is not a trading engine, exchange, payment system, or marketplace.
 - It does not execute trades or provide financial advice.
 - It does not claim production-grade intelligence accuracy without labeled real-world calibration data.
-- It does not ship production disclosure/news connectors yet; that remains the primary Phase 8 gap.
+- It does not bundle source registrations, credentials, licensed-provider agreements, or universal regulator coverage; operators onboard approved sources through governed policies.
 
 ## Architecture
 
@@ -476,7 +476,7 @@ Security controls include:
 | 5 Baseline detectors and fusion | Complete baseline with governance extensions |
 | 6 Campaign and alert engine | Complete core implementation |
 | 7 Narrative, embeddings, coordination graph | Complete deterministic baseline with optional graph/vector services |
-| 8 Disclosure and claim verification | Partially complete; production connectors and analyst views remain |
+| 8 Disclosure and claim verification | Complete backend implementation with configurable official connectors, governed source policies, versioned evidence, and analyst APIs |
 | 9 Evidence, explainability, analyst workflow | Implemented with evidence snapshots, investigations, feedback, and audit |
 | 10 Replay, evaluation, MLOps | Implemented with evaluation, ablations, MLflow hooks, aliases, and shadow scoring |
 | 11 Reliability, security, hardening | Implemented for production-shaped deployment |
@@ -484,8 +484,8 @@ Security controls include:
 
 ## Known Gaps
 
-- Phase 8 production official-source connectors are still required.
-- Analyst-facing claim/disclosure verification APIs and document views need to be expanded.
+- Official source registrations, credentials, licensed-provider agreements, retention rules, and attribution decisions remain environment-owned.
+- The included RSS/Atom, GitHub Releases, and SEC EDGAR connectors require production feed/CIK onboarding and long-duration validation; additional regulators without compatible feeds require connector implementations.
 - Live exchange/social providers need production credentials, rate-limit policy, replay parity tests, and long-duration validation.
 - Real-world model quality requires labeled datasets, hard negatives, continuous calibration, and analyst feedback loops.
 - Public cloud deployment is validated through IaC and Compose contracts but not provisioned in this repository.

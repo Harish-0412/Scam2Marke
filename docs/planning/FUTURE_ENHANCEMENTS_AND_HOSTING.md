@@ -8,13 +8,13 @@ The backend is ready for frontend integration and deterministic local demonstrat
 
 The most important reminder remains:
 
-> Phase 8 still needs production official-source disclosure/news connectors, source-policy administration, and a dedicated analyst-facing claim/disclosure verification API. The deterministic verification engine exists, but the source acquisition and analyst evidence surface are not complete enough for production intelligence claims.
+> Phase 8 backend implementation is complete with configurable RSS/Atom, GitHub Releases, and SEC EDGAR connectors, governed source policies, connector/version tracking, and analyst verification APIs. Production source registration, credentials, licensed-provider agreements, retention/attribution decisions, additional regulator-specific connectors, and sustained operational validation remain deployment work.
 
 ## Roadmap Priorities
 
 | Priority | Workstream | Outcome |
 |---|---|---|
-| P0 | Phase 8 production verification | Official-source claims can be verified against trustworthy event-time evidence. |
+| P0 | Phase 8 production onboarding | Register approved official sources and validate trustworthy event-time evidence under sustained operation. |
 | P0 | Frontend integration contract | Analyst dashboard consumes stable backend APIs without relying on mock data. |
 | P0 | Live provider hardening | Exchange/social feeds survive reconnects, rate limits, gaps, and provider outages. |
 | P0 | Hosted staging | Backend, workers, database, Redis, streaming, and observability run outside local Docker. |
@@ -24,30 +24,30 @@ The most important reminder remains:
 | P2 | Cross-platform entity intelligence | Shared promoters, URLs, wallets, accounts, and narratives link campaigns over time. |
 | P2 | Adversarial simulation | The team can test manipulation variants before adversaries exploit blind spots. |
 
-## P0: Complete Phase 8 Official-Source Verification
+## P0: Operate Phase 8 Official-Source Verification
 
 ### Goal
 
-Turn deterministic verification into production-grade source-backed claim verification.
+Onboard and validate the implemented source-backed claim-verification system in a production environment.
 
 ### Implementation Plan
 
-1. Add official disclosure connectors.
+1. Register and validate official disclosure connectors.
    - Exchange announcements: Binance, Coinbase, Kraken, OKX, Bybit, KuCoin, Gate.io where policy allows.
    - Regulator disclosures: SEC EDGAR for public-company disclosures, CFTC/FINRA notices where relevant, regional regulator feeds where supported.
    - Project-owned sources: official project blogs, GitHub release feeds, status pages, governance forums, and verified social channels.
    - Reliable news: RSS or licensed APIs from reputable market/news providers.
 
-2. Add source trust and policy administration.
+2. Configure source trust and policy administration.
    - Tables: `source_policies`, `source_trust_scores`, `source_license_rules`, `source_connector_runs`, `source_document_versions`.
    - Fields: source type, trust level, retention class, allowed usage, crawl cadence, dedup key, canonical URL, first-seen time, published time, retrieved time, and signature/hash metadata.
    - API: create/update source policy, disable source, inspect source lag, inspect rejected documents, and audit source-policy changes.
 
-3. Add analyst-facing verification views.
+3. Integrate the analyst-facing verification APIs into the full frontend.
    - API: `GET /api/v1/claims/{claim_id}`, `GET /api/v1/claims/{claim_id}/verification`, `GET /api/v1/alerts/{alert_id}/claims`, `GET /api/v1/disclosures/{document_id}`.
    - Response should include extracted claim, verification outcome, supporting documents, conflicting documents, cutoff time, retrieval query, source trust, and whether evidence was available before the alert.
 
-4. Add strict temporal-leakage controls.
+4. Continuously validate strict temporal-leakage controls.
    - Retrieval must filter by `published_at <= alert_time` unless the analyst explicitly requests retrospective analysis.
    - Store both `published_at` and `retrieved_at`.
    - Tests must prove future documents cannot support past alerts.
@@ -425,7 +425,7 @@ Implementation:
 
 ## Suggested Next Build Sequence
 
-1. Complete Phase 8 official-source connectors and analyst verification API.
+1. Register approved Phase 8 sources and validate the analyst verification APIs in staging.
 2. Build the frontend against `contracts/openapi-v1.json` and local Docker backend.
 3. Deploy frontend to Vercel and backend to a low-cost container host.
 4. Connect managed PostgreSQL/TimescaleDB, Redis, and Kafka/Redpanda.
@@ -444,4 +444,4 @@ Implementation:
 - Data services are private.
 - Backups and restore drills are configured.
 - CI/CD publishes the same image digest that staging runs.
-- README documents known gaps honestly, especially Phase 8 connectors.
+- README documents environment-owned source onboarding, licensing, and connector coverage honestly.

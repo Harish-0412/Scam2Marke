@@ -1,6 +1,6 @@
 # Next Services Roadmap
 
-## Immediate: Finish Phase 8
+## Immediate: Operate Phase 8
 
 The deterministic claim-verification engine exists, but production evidence acquisition is the most
 important incomplete product capability.
@@ -100,7 +100,7 @@ important incomplete product capability.
 
 ## Recommended Order
 
-1. Complete Phase 8 connectors and analyst verification evidence.
+1. Register approved Phase 8 sources and validate analyst verification evidence in staging.
 2. Add identity/RBAC and tenant isolation.
 3. Provision protected staging with managed secrets and backups.
 4. Add live market/social connectors and durable stream checkpoints.

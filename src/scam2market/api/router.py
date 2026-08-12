@@ -11,6 +11,7 @@ from scam2market.api.routes import (
     notifications,
     operations,
     surveillance,
+    verification,
 )
 from scam2market.security.auth import authorize_api_request
 
@@ -31,4 +32,7 @@ api_router.include_router(operations.router, tags=["operations"], dependencies=p
 api_router.include_router(notifications.router, tags=["notifications"], dependencies=protected)
 api_router.include_router(
     model_governance.router, tags=["model governance", "feedback"], dependencies=protected
+)
+api_router.include_router(
+    verification.router, tags=["official verification"], dependencies=protected
 )

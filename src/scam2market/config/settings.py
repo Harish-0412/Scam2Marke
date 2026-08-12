@@ -34,6 +34,8 @@ class Settings(BaseSettings):
     campaign_inactivity_close_seconds: int = Field(default=3600, gt=0)
     verification_pre_alert_lookback_days: int = Field(default=30, gt=0)
     verification_post_alert_horizon_days: int = Field(default=7, ge=0)
+    disclosure_connector_poll_interval_seconds: float = Field(default=300, ge=5, le=86400)
+    disclosure_connector_timeout_seconds: float = Field(default=15, gt=0, le=120)
     realtime_stream_key: str = "stream:alerts:v1"
     realtime_stream_max_length: int = Field(default=10_000, ge=100)
     mlflow_tracking_uri: AnyUrl | str = "http://localhost:5000"

@@ -8,6 +8,8 @@
 
 **Repository:** https://github.com/Harish-0412/Scam2Marke
 
+**Current implementation note:** Phase 8 includes configurable RSS/Atom, GitHub Releases, and SEC EDGAR recent-submission connectors, analyst APIs, and availability-safe evidence versioning. Source credentials and registrations, licensed-provider agreements, and operational validation are deployment responsibilities; universal regulator/provider coverage is not claimed.
+
 ## Abstract
 
 Scam2Market is a backend intelligence system for detecting suspected pump-and-dump and coordinated promotion campaigns by correlating market microstructure signals, social amplification signals, semantic narrative clusters, graph coordination patterns, disclosure verification, and analyst feedback. The project intentionally avoids marketplace, payment, listing, or dispute-management scope. Its central objective is to produce explainable, replayable, evidence-backed surveillance outputs that can be consumed by an analyst dashboard or downstream notification system.
@@ -153,7 +155,7 @@ Alert types include social hype surge, coordinated promotion, unverified narrati
 
 The narrative pipeline generates deterministic embeddings for replay-stable clustering and can index post/narrative vectors in Qdrant. Graph projection links actors, posts, assets, narratives, campaigns, alerts, and evidence in Neo4j. Cheap graph analytics produce features such as community concentration, synchronized posting, amplifier overlap, propagation depth, and cross-community spread.
 
-The verification engine ingests disclosure documents, chunks and indexes them, extracts narrative claims, and verifies whether supporting evidence existed before the alert time. Supported-before-alert evidence can reduce manipulation confidence, while unsupported or conflicting claims increase claim risk. The main remaining gap is production official-source connector coverage and richer analyst-facing claim/disclosure views.
+The verification engine ingests governed RSS/Atom, GitHub Releases, and SEC EDGAR documents, chunks and indexes them, extracts narrative claims, and verifies whether supporting evidence existed before the alert time. Supported-before-alert evidence can reduce manipulation confidence, while unsupported or conflicting claims increase claim risk. Source policies preserve trust, license, availability, connector-run, and version metadata, and analyst APIs expose supporting, conflicting, and retrospective evidence.
 
 ## 11. Evidence, Investigations, And Governance
 
@@ -187,7 +189,7 @@ Evaluation is built around deterministic replay, hard-negative scenarios, detect
 
 Current limitations:
 
-- production official-source connectors and analyst-facing claim-verification views remain incomplete;
+- source registrations, credentials, licensed-provider agreements, and connectors for regulators without compatible feeds remain environment-owned;
 - live provider scaffolding requires production credentials, rate-limit policy, and long-duration validation;
 - model accuracy depends on labeled data that must be collected and governed;
 - public cloud deployment needs external credentials, DNS, secrets, and provider accounts;
@@ -195,7 +197,7 @@ Current limitations:
 
 ## 17. Conclusion
 
-Scam2Market demonstrates a professional backend architecture for manipulation surveillance: event-time ingestion, replayable features, multi-domain scoring, campaign state, real-time alerts, evidence snapshots, analyst workflow, and deployment governance. Its most important next step is completing Phase 8 official-source verification and pairing the backend with a frontend that consumes the frozen API contract without mock data.
+Scam2Market demonstrates a professional backend architecture for manipulation surveillance: event-time ingestion, replayable features, multi-domain scoring, campaign state, real-time alerts, governed official-source verification, evidence snapshots, analyst workflow, and deployment governance. Its most important next step is onboarding approved production sources, validating them under sustained operation, and pairing the backend with a frontend that consumes the frozen API contract without mock data.
 
 ## References
 

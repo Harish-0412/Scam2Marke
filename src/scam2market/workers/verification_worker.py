@@ -49,7 +49,7 @@ async def run() -> None:
             async for record in consumer.records():
                 event = record.event
                 if event.event_type == EventType.disclosure_received:
-                    await ingestion.ingest(disclosure_from_event(event))
+                    await ingestion.ingest(disclosure_from_event(event), preserve_timestamps=True)
                 elif event.event_type == EventType.narrative_clustered:
                     try:
                         await verification.process(event)
