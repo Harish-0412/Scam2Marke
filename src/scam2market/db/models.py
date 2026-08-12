@@ -1320,3 +1320,91 @@ class NotificationDeliveryModel(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+
+
+class CalibrationLabelModel(Base):
+    __tablename__ = "calibration_labels"
+
+    label_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4, server_default=func.gen_random_uuid()
+    )
+    tenant_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    model_family: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    model_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    raw_score: Mapped[float] = mapped_column(Float, nullable=False)
+    outcome: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    data_partition: Mapped[str] = mapped_column(String(32), nullable=False, default="CALIBRATION")
+    segment_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    alert_id: Mapped[PyUUID | None] = mapped_column(UUID(as_uuid=True), index=True)
+    event_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    labeled_by: Mapped[str] = mapped_column(String(128), nullable=False)
+    label_reason: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class ModelCalibrationModel(Base):
+    __tablename__ = "model_calibrations"
+
+    calibration_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4, server_default=func.gen_random_uuid()
+    )
+    tenant_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    model_artifact_id: Mapped[PyUUID] = mapped_column(
+        ForeignKey("model_artifacts.model_artifact_id", ondelete="RESTRICT"), nullable=False
+    )
+    method: Mapped[str] = mapped_column(String(32), nullable=False, default="PLATT")
+    segment_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    parameters_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    metrics_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    sample_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    data_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="ACTIVE")
+    created_by: Mapped[str] = mapped_column(String(128), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class ModelPromotionDecisionModel(Base):
+    __tablename__ = "model_promotion_decisions"
+
+    decision_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4, server_default=func.gen_random_uuid()
+    )
+    tenant_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    model_family: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    candidate_artifact_id: Mapped[PyUUID] = mapped_column(
+        ForeignKey("model_artifacts.model_artifact_id", ondelete="RESTRICT"), nullable=False
+    )
+    champion_artifact_id: Mapped[PyUUID | None] = mapped_column(
+        ForeignKey("model_artifacts.model_artifact_id", ondelete="RESTRICT")
+    )
+    calibration_id: Mapped[PyUUID] = mapped_column(
+        ForeignKey("model_calibrations.calibration_id", ondelete="RESTRICT"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    checks_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    decided_by: Mapped[str] = mapped_column(String(128), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class FalsePositiveReportModel(TimestampMixin, Base):
+    __tablename__ = "false_positive_reports"
+
+    report_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4, server_default=func.gen_random_uuid()
+    )
+    tenant_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    alert_id: Mapped[PyUUID | None] = mapped_column(UUID(as_uuid=True), index=True)
+    model_family: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    model_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    asset_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    reason_code: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    notes: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="OPEN", index=True)
+    reported_by: Mapped[str] = mapped_column(String(128), nullable=False)

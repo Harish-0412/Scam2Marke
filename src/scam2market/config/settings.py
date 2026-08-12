@@ -61,6 +61,11 @@ class Settings(BaseSettings):
     service_key_pepper: str = "development-only-service-key-pepper"
     service_key_default_ttl_days: int = Field(default=90, ge=1, le=365)
     notification_poll_interval_seconds: float = Field(default=1.0, ge=0.1, le=60)
+    calibration_min_samples: int = Field(default=20, ge=10, le=100_000)
+    calibration_max_ece: float = Field(default=0.12, ge=0, le=1)
+    calibration_min_auc: float = Field(default=0.65, ge=0, le=1)
+    promotion_max_false_positives: int = Field(default=5, ge=0, le=100_000)
+    promotion_brier_tolerance: float = Field(default=0.01, ge=0, le=1)
 
     allowed_origins: Annotated[list[str], NoDecode] = [
         "http://localhost:3000",

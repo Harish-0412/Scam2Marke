@@ -20,6 +20,7 @@ document:
 11. [Authentication And Tenant Isolation](docs/implementation/CHECKPOINT_1_AUTH_TENANCY.md)
 12. [Live Providers And Durable Checkpoints](docs/implementation/CHECKPOINT_2_LIVE_PROVIDERS.md)
 13. [Analyst Dashboard And Notifications](docs/implementation/CHECKPOINT_3_DASHBOARD_NOTIFICATIONS.md)
+14. [Calibration, Promotion, And False Positives](docs/implementation/CHECKPOINT_4_MODEL_GOVERNANCE.md)
 
 ## Current Phase
 
@@ -67,6 +68,7 @@ Phases 0 through 12 are implemented for the reproducible local surveillance scop
   release verifier, and complete Compose replay CI job.
 - tenant-scoped Slack, Teams, email, and signed webhook delivery with idempotent retry history;
 - an analyst dashboard for alert triage, campaign state, source readiness, and durable checkpoints.
+- deterministic labeled calibration, drift-aware model promotion, and tenant false-positive reports.
 
 Phase 8 reminder: production official-source connectors and a dedicated analyst-facing
 claim/disclosure verification API still need to be completed.
