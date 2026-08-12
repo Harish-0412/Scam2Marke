@@ -54,6 +54,9 @@ jobs:
       - name: Type-check
         run: python -m mypy src tests
 
+      - name: Validate production operations contract
+        run: python scripts/validate_operations.py
+
       - name: Apply database migrations
         run: python -m alembic upgrade head
 
@@ -76,6 +79,29 @@ jobs:
 
       - name: Build backend image
         run: docker build --tag scam2market-backend:ci .
+
+      - name: Validate Terraform
+        run: |
+          docker run --rm -v "$PWD/infra/terraform/aws:/workspace" -w /workspace \
+            hashicorp/terraform:1.13 fmt -check
+          docker run --rm -v "$PWD/infra/terraform/aws:/workspace" -w /workspace \
+            hashicorp/terraform:1.13 init -backend=false
+          docker run --rm -v "$PWD/infra/terraform/aws:/workspace" -w /workspace \
+            hashicorp/terraform:1.13 validate
+
+      - name: Lint Helm deployment
+        run: >-
+          docker run --rm -v "$PWD/deploy/helm/scam2market:/chart" alpine/helm:3.17.3
+          lint /chart
+          --set image.digest=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          --set backup.imageDigest=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+          --set serviceAccount.roleArn=arn:aws:iam::000000000000:role/scam2market
+          --set ingress.certificateArn=arn:aws:acm:ap-south-1:000000000000:certificate/example
+          --set backup.bucket=scam2market-backups
+          --set backup.kmsKeyArn=arn:aws:kms:ap-south-1:000000000000:key/example
+
+      - name: Build backup and restore image
+        run: docker build --tag scam2market-operations:ci ops/backup
 
   compose-replay:
     runs-on: ubuntu-24.04

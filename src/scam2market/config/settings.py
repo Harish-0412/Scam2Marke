@@ -1,5 +1,5 @@
 from functools import lru_cache
-from typing import Annotated, Any, cast
+from typing import Annotated, Any, Literal, cast
 
 from pydantic import AnyUrl, Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     )
     redis_url: str = "redis://localhost:6379/0"
     redpanda_bootstrap_servers: str = "localhost:19092"
+    kafka_security_protocol: Literal["PLAINTEXT", "SSL"] = "PLAINTEXT"
 
     neo4j_uri: str = "bolt://localhost:7687"
     neo4j_user: str = "neo4j"

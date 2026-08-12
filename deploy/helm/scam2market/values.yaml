@@ -1,0 +1,40 @@
+image:
+  repository: ghcr.io/harish-0412/scam2marke-backend
+  digest: ""
+  pullPolicy: IfNotPresent
+replicaCount: 3
+serviceAccount:
+  name: scam2market
+  roleArn: ""
+existingSecret: scam2market-runtime
+config:
+  environment: production
+  authRequired: "true"
+  developmentAuthEnabled: "false"
+  kafkaSecurityProtocol: SSL
+service:
+  port: 8000
+ingress:
+  enabled: true
+  className: alb
+  host: surveillance.example.com
+  certificateArn: ""
+resources:
+  requests: {cpu: 500m, memory: 768Mi}
+  limits: {cpu: "2", memory: 2Gi}
+autoscaling:
+  minReplicas: 3
+  maxReplicas: 12
+  cpuUtilization: 65
+podDisruptionBudget:
+  minAvailable: 2
+backup:
+  enabled: true
+  schedule: "17 1 * * *"
+  restoreDrillSchedule: "31 3 * * 0"
+  imageRepository: ghcr.io/harish-0412/scam2marke-operations
+  imageDigest: ""
+  bucket: ""
+  kmsKeyArn: ""
+network:
+  privateCidr: 10.42.0.0/16

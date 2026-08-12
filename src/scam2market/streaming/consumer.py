@@ -1,3 +1,4 @@
+import ssl
 from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass
 
@@ -25,6 +26,9 @@ class EventConsumer:
         bootstrap_servers: str | None = None,
     ) -> None:
         settings = get_settings()
+        ssl_context = (
+            ssl.create_default_context() if settings.kafka_security_protocol == "SSL" else None
+        )
         self._consumer = AIOKafkaConsumer(
             *topics,
             bootstrap_servers=bootstrap_servers or settings.redpanda_bootstrap_servers,
@@ -33,6 +37,8 @@ class EventConsumer:
             auto_offset_reset="earliest",
             isolation_level="read_committed",
             value_deserializer=orjson.loads,
+            security_protocol=settings.kafka_security_protocol,
+            ssl_context=ssl_context,
         )
 
     async def __aenter__(self) -> "EventConsumer":

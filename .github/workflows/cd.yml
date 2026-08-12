@@ -149,7 +149,7 @@ jobs:
         run: |
           mkdir -p release
           cp docker-compose.yml docker-compose.production.yml .env.production.example release/
-          cp -r ops contracts scripts/verify_release.py docs/operations release/
+          cp -r ops infra deploy contracts scripts/verify_release.py scripts/validate_operations.py docs/operations release/
           printf 'SCAM2MARKET_IMAGE=%s@%s\n' \
             '${{ needs.publish.outputs.image }}' '${{ needs.publish.outputs.digest }}' \
             > release/image.env

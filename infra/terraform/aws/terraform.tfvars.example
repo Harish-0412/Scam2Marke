@@ -1,0 +1,5 @@
+aws_region                 = "ap-south-1"
+environment                = "production"
+domain_name                = "surveillance.example.com"
+route53_zone_id            = "Z0000000000000000000"
+backup_database_secret_arn = "arn:aws:secretsmanager:ap-south-1:000000000000:secret:scam2market/timescale"

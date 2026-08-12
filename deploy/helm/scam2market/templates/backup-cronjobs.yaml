@@ -1,0 +1,61 @@
+{{- if .Values.backup.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata: {name: scam2market-database-backup}
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 3600
+      template:
+        spec:
+          serviceAccountName: {{ .Values.serviceAccount.name }}
+          restartPolicy: Never
+          securityContext: {runAsNonRoot: true, seccompProfile: {type: RuntimeDefault}}
+          containers:
+            - name: backup
+              image: {{ include "scam2market.operationsImage" . }}
+              command: ["/usr/local/bin/backup_database.sh"]
+              env:
+                - {name: BACKUP_BUCKET, value: {{ required "backup.bucket is required" .Values.backup.bucket | quote }}}
+                - {name: BACKUP_KMS_KEY_ARN, value: {{ required "backup.kmsKeyArn is required" .Values.backup.kmsKeyArn | quote }}}
+                - name: BACKUP_DATABASE_URL
+                  valueFrom: {secretKeyRef: {name: {{ .Values.existingSecret }}, key: BACKUP_DATABASE_URL}}
+              securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: ["ALL"]}}
+              volumeMounts: [{name: tmp, mountPath: /tmp}]
+          volumes: [{name: tmp, emptyDir: {sizeLimit: 4Gi}}]
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata: {name: scam2market-restore-drill}
+spec:
+  schedule: {{ .Values.backup.restoreDrillSchedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 8
+  failedJobsHistoryLimit: 8
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 7200
+      template:
+        spec:
+          serviceAccountName: {{ .Values.serviceAccount.name }}
+          restartPolicy: Never
+          securityContext: {runAsNonRoot: true, seccompProfile: {type: RuntimeDefault}}
+          containers:
+            - name: restore-drill
+              image: {{ include "scam2market.operationsImage" . }}
+              command: ["/usr/local/bin/restore_drill.sh"]
+              env:
+                - {name: BACKUP_BUCKET, value: {{ required "backup.bucket is required" .Values.backup.bucket | quote }}}
+                - {name: ALLOW_RESTORE_DRILL, value: "true"}
+                - name: RESTORE_DATABASE_URL
+                  valueFrom: {secretKeyRef: {name: {{ .Values.existingSecret }}, key: RESTORE_DATABASE_URL}}
+              securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: ["ALL"]}}
+              volumeMounts: [{name: tmp, mountPath: /tmp}]
+          volumes: [{name: tmp, emptyDir: {sizeLimit: 4Gi}}]
+{{- end }}

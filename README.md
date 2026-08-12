@@ -21,6 +21,7 @@ document:
 12. [Live Providers And Durable Checkpoints](docs/implementation/CHECKPOINT_2_LIVE_PROVIDERS.md)
 13. [Analyst Dashboard And Notifications](docs/implementation/CHECKPOINT_3_DASHBOARD_NOTIFICATIONS.md)
 14. [Calibration, Promotion, And False Positives](docs/implementation/CHECKPOINT_4_MODEL_GOVERNANCE.md)
+15. [Production Infrastructure, Recovery, TLS, And SLOs](docs/implementation/CHECKPOINT_5_PRODUCTION_OPERATIONS.md)
 
 ## Current Phase
 
@@ -69,9 +70,18 @@ Phases 0 through 12 are implemented for the reproducible local surveillance scop
 - tenant-scoped Slack, Teams, email, and signed webhook delivery with idempotent retry history;
 - an analyst dashboard for alert triage, campaign state, source readiness, and durable checkpoints.
 - deterministic labeled calibration, drift-aware model promotion, and tenant false-positive reports.
+- AWS Terraform and Helm production deployment, TLS termination, encrypted backups, restore drills,
+  and measurable availability/latency SLOs.
 
 Phase 8 reminder: production official-source connectors and a dedicated analyst-facing
 claim/disclosure verification API still need to be completed.
+
+## Additional High-Value Services
+
+Slack, Teams, email, and signed webhooks are now implemented. The next expansion candidates are
+portfolio intelligence, cross-platform entity resolution, historical campaign matching, adversarial
+simulation, signed evidence exports, SIEM integration, vulnerability scanning, and automated
+dependency updates.
 
 ## Local Setup
 
@@ -113,6 +123,12 @@ Run the observability stack with Prometheus, Grafana, and the OTLP collector:
 
 ```powershell
 docker compose --profile observability up --build
+```
+
+Validate the production infrastructure and recovery contract with:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\validate_operations.py
 ```
 
 Local service URLs:

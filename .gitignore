@@ -13,3 +13,5 @@ htmlcov/
 .vscode/
 data/
 logs/
+.terraform/
+.restore-drill/

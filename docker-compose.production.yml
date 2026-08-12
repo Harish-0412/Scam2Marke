@@ -10,6 +10,24 @@ services:
       DEVELOPMENT_AUTH_ENABLED: "false"
       RATE_LIMIT_FAIL_CLOSED: "true"
     volumes: !reset []
+    ports: !reset []
+  tls-gateway:
+    image: caddy:2.10-alpine
+    restart: always
+    read_only: true
+    tmpfs: ["/config"]
+    environment:
+      SCAM2MARKET_DOMAIN: ${SCAM2MARKET_DOMAIN:?SCAM2MARKET_DOMAIN is required}
+      ACME_EMAIL: ${ACME_EMAIL:?ACME_EMAIL is required}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./ops/tls/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    depends_on:
+      api:
+        condition: service_healthy
   postgres:
     ports: !reset []
     restart: always
@@ -37,3 +55,6 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD is required}
   otel-collector:
     ports: !reset []
+
+volumes:
+  caddy-data:
