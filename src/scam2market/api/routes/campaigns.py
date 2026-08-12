@@ -17,6 +17,7 @@ from scam2market.db.models import (
 )
 from scam2market.db.session import get_db_session
 from scam2market.realtime import RealtimeBroker, RedisRealtimeBroker
+from scam2market.security.auth import CurrentPrincipal
 
 router = APIRouter()
 
@@ -36,12 +37,16 @@ async def get_realtime_broker() -> AsyncIterator[RealtimeBroker]:
 
 @router.get("/campaigns")
 async def campaigns(
+    principal: CurrentPrincipal,
     asset_id: str | None = None,
     scope_id: str = "LIVE",
     limit: int = Query(default=100, ge=1, le=500),
     session: AsyncSession = Depends(get_db_session),
 ) -> list[dict[str, Any]]:
-    query = select(CampaignModel).where(CampaignModel.scope_id == scope_id)
+    query = select(CampaignModel).where(
+        CampaignModel.tenant_id == principal.tenant_id,
+        CampaignModel.scope_id == scope_id,
+    )
     if asset_id is not None:
         query = query.where(CampaignModel.asset_id == asset_id)
     rows = (
@@ -72,6 +77,7 @@ async def campaigns(
 
 @router.get("/alerts")
 async def alerts(
+    principal: CurrentPrincipal,
     campaign_id: str | None = None,
     scope_id: str = "LIVE",
     status: str = "ACTIVE",
@@ -81,7 +87,11 @@ async def alerts(
     query = (
         select(AlertModel)
         .join(CampaignModel, CampaignModel.campaign_id == AlertModel.campaign_id)
-        .where(AlertModel.status == status, CampaignModel.scope_id == scope_id)
+        .where(
+            AlertModel.tenant_id == principal.tenant_id,
+            AlertModel.status == status,
+            CampaignModel.scope_id == scope_id,
+        )
     )
     if campaign_id is not None:
         query = query.where(AlertModel.campaign_id == campaign_id)

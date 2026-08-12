@@ -1,4 +1,5 @@
 import asyncio
+import ssl
 from collections.abc import Sequence
 from typing import Protocol
 from uuid import uuid4
@@ -20,17 +21,21 @@ class EventPublisher:
     def __init__(self, bootstrap_servers: str | None = None) -> None:
         settings = get_settings()
         self._bootstrap_servers = bootstrap_servers or settings.redpanda_bootstrap_servers
+        self._security_protocol = settings.kafka_security_protocol
         self._producer: AIOKafkaProducer | None = None
         self._transactional_id = f"scam2market-producer-{uuid4()}"
         self._transaction_lock = asyncio.Lock()
 
     async def start(self) -> None:
+        ssl_context = ssl.create_default_context() if self._security_protocol == "SSL" else None
         self._producer = AIOKafkaProducer(
             bootstrap_servers=self._bootstrap_servers,
             value_serializer=lambda value: orjson.dumps(value),
             key_serializer=lambda value: value.encode("utf-8"),
             enable_idempotence=True,
             transactional_id=self._transactional_id,
+            security_protocol=self._security_protocol,
+            ssl_context=ssl_context,
         )
         await self._producer.start()
 

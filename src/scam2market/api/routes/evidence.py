@@ -27,6 +27,7 @@ from scam2market.evidence.schemas import (
     InvestigationStatus,
     InvestigationUpdate,
 )
+from scam2market.security.auth import CurrentPrincipal
 
 router = APIRouter()
 
@@ -124,6 +125,7 @@ async def evidence_manifest(
 async def create_investigation(
     body: InvestigationCreate,
     actor_id: Annotated[str, Header(alias="X-Actor-ID")],
+    principal: CurrentPrincipal,
     session: AsyncSession = Depends(get_db_session),
 ) -> dict[str, Any]:
     alert = await session.get(AlertModel, body.alert_id)
@@ -134,6 +136,7 @@ async def create_investigation(
     if campaign is None:
         raise HTTPException(status_code=422, detail="alert campaign not found")
     investigation = InvestigationModel(
+        tenant_id=principal.tenant_id,
         scope_id=campaign.scope_id,
         alert_id=body.alert_id,
         snapshot_id=body.snapshot_id,
@@ -161,6 +164,7 @@ async def create_investigation(
 
 @router.get("/investigations")
 async def list_investigations(
+    principal: CurrentPrincipal,
     scope_id: str = "LIVE",
     status: InvestigationStatus | None = None,
     assigned_to: str | None = None,
@@ -168,7 +172,10 @@ async def list_investigations(
     limit: int = Query(default=100, ge=1, le=500),
     session: AsyncSession = Depends(get_db_session),
 ) -> list[dict[str, Any]]:
-    query = select(InvestigationModel).where(InvestigationModel.scope_id == scope_id)
+    query = select(InvestigationModel).where(
+        InvestigationModel.tenant_id == principal.tenant_id,
+        InvestigationModel.scope_id == scope_id,
+    )
     if status is not None:
         query = query.where(InvestigationModel.status == status.value)
     if assigned_to is not None:

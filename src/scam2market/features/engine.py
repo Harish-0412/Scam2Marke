@@ -77,12 +77,14 @@ class FeatureWindowEngine:
         self._source_states: dict[tuple[str, str, SourceDomain], dict[str, bool]] = {}
         self._seen_event_ids: set[tuple[str, str]] = set()
         self._author_first_seen: dict[tuple[str, str, str], datetime] = {}
+        self._signal_log: list[FeatureSignal] = []
 
     def ingest(self, signal: FeatureSignal) -> list[FeatureSnapshot]:
         seen_key = (signal.scope_id, signal.event_id)
         if seen_key in self._seen_event_ids:
             return []
         self._seen_event_ids.add(seen_key)
+        self._signal_log.append(signal)
         scope_asset = (signal.scope_id, signal.asset_id)
         source_key = (*scope_asset, signal.source_domain)
         self._max_event_time[source_key] = max(
@@ -133,6 +135,24 @@ class FeatureWindowEngine:
                 )
         changed.extend(self._finalize_eligible(signal.scope_id, signal.asset_id))
         return changed
+
+    def export_state(self) -> dict[str, object]:
+        return {
+            "state_version": "feature-engine-state-v1",
+            "signals": [signal.model_dump(mode="json") for signal in self._signal_log],
+        }
+
+    def restore_state(self, state: dict[str, object]) -> int:
+        if self._signal_log:
+            raise RuntimeError("feature state can only be restored into an empty engine")
+        if state.get("state_version") != "feature-engine-state-v1":
+            raise ValueError("unsupported feature checkpoint state version")
+        raw_signals = state.get("signals")
+        if not isinstance(raw_signals, list):
+            raise ValueError("feature checkpoint signals must be a list")
+        for raw_signal in raw_signals:
+            self.ingest(FeatureSignal.model_validate(raw_signal))
+        return len(raw_signals)
 
     def revisions(
         self,

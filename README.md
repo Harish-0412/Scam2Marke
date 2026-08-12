@@ -15,17 +15,28 @@ document:
 6. [Phases 6-8 Implementation Notes](docs/implementation/phases-6-8.md)
 7. [Phases 9-10 Implementation Report](docs/implementation/PHASE_9_10_IMPLEMENTATION_REPORT.md)
 8. [Phases 11-12 Implementation Report](docs/implementation/PHASE_11_12_IMPLEMENTATION_REPORT.md)
+9. [CI/CD Pipeline](docs/operations/CI_CD_PIPELINE.md)
+10. [Next Services Roadmap](docs/planning/NEXT_SERVICES_ROADMAP.md)
+11. [Authentication And Tenant Isolation](docs/implementation/CHECKPOINT_1_AUTH_TENANCY.md)
+12. [Live Providers And Durable Checkpoints](docs/implementation/CHECKPOINT_2_LIVE_PROVIDERS.md)
+13. [Analyst Dashboard And Notifications](docs/implementation/CHECKPOINT_3_DASHBOARD_NOTIFICATIONS.md)
+14. [Calibration, Promotion, And False Positives](docs/implementation/CHECKPOINT_4_MODEL_GOVERNANCE.md)
+15. [Production Infrastructure, Recovery, TLS, And SLOs](docs/implementation/CHECKPOINT_5_PRODUCTION_OPERATIONS.md)
 
 ## Current Phase
 
 Phases 0 through 12 are implemented for the reproducible local surveillance scope:
 
 - deterministic synthetic and replay market providers;
+- live Binance trade, top-five order-book, and closed-candle polling with source cursors;
+- live Mastodon public-timeline and RSS social providers with deduplication and optional credentials;
 - normalized trade, candle, and top-five order book ingestion;
 - privacy-preserving social replay, parsing, and versioned asset resolution;
 - Redpanda-first telemetry with independent TimescaleDB and Parquet consumers;
 - an outbox reserved for database-originated domain events;
 - event-time 1-minute and 5-minute windows with source watermarks and corrected revisions;
+- checksum-protected feature-worker state snapshots with database-first offset commits and exact
+  arrival-order recovery;
 - feature lineage, exact model-input schemas, and low-history confidence;
 - baseline market, social, coordination, and temporal detectors;
 - separate market, social-coordination, and cross-domain risks with coded missing outputs;
@@ -48,16 +59,29 @@ Phases 0 through 12 are implemented for the reproducible local surveillance scop
 - shadow scoring that is database-constrained never to control production alerts.
 - integrated Prometheus metrics, optional OTLP traces, Grafana operations dashboards, readiness
   probes, circuit breakers, bounded micro-batching, and visible optional-service degradation;
-- Redis token-bucket rate limiting, optional API-key enforcement, non-root containers, and untrusted
+- Redis token-bucket rate limiting, OIDC/JWT authentication, tenant-aware RBAC, rotatable hashed
+  service-account keys, PostgreSQL row-level security, non-root containers, and untrusted
   text/data-poisoning guardrails;
 - persistent model-drift reporting and auditable policy proposal governance;
 - frozen analyst API for watchlists, assets, timelines, campaigns, alerts, narratives, graphs,
   evidence, investigations, feedback, replay, and evaluation;
 - queued replay control worker, generated OpenAPI contract, production-shaped Compose override,
   release verifier, and complete Compose replay CI job.
+- tenant-scoped Slack, Teams, email, and signed webhook delivery with idempotent retry history;
+- an analyst dashboard for alert triage, campaign state, source readiness, and durable checkpoints.
+- deterministic labeled calibration, drift-aware model promotion, and tenant false-positive reports.
+- AWS Terraform and Helm production deployment, TLS termination, encrypted backups, restore drills,
+  and measurable availability/latency SLOs.
 
 Phase 8 reminder: production official-source connectors and a dedicated analyst-facing
 claim/disclosure verification API still need to be completed.
+
+## Additional High-Value Services
+
+Slack, Teams, email, and signed webhooks are now implemented. The next expansion candidates are
+portfolio intelligence, cross-platform entity resolution, historical campaign matching, adversarial
+simulation, signed evidence exports, SIEM integration, vulnerability scanning, and automated
+dependency updates.
 
 ## Local Setup
 
@@ -101,9 +125,16 @@ Run the observability stack with Prometheus, Grafana, and the OTLP collector:
 docker compose --profile observability up --build
 ```
 
+Validate the production infrastructure and recovery contract with:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\validate_operations.py
+```
+
 Local service URLs:
 
 - API documentation: `http://localhost:8000/docs`
+- analyst dashboard: `http://localhost:8000/dashboard/`
 - readiness: `http://localhost:8000/api/v1/ready`
 - Prometheus: `http://localhost:9090`
 - Grafana: `http://localhost:3001` (`admin` / development password from Compose)
@@ -115,11 +146,28 @@ For production-shaped validation, replace every placeholder in `.env.production.
 values from a managed secret store, then apply both Compose files. The repository intentionally does
 not contain deployment credentials.
 
+## CI/CD
+
+Every push and pull request runs linting, strict type checks, database migrations, tests, container
+builds, and the complete replay regression. The CD workflow publishes a commit-addressed backend
+image to `ghcr.io/harish-0412/scam2marke-backend`, adds an SBOM and provenance attestation, and uploads
+a digest-pinned deployment bundle.
+
+Automatic staging deployment is intentionally opt-in. See the
+[CI/CD Pipeline](docs/operations/CI_CD_PIPELINE.md) for free-tier boundaries and the protected
+self-hosted runner setup.
+
 The raw replay archive is written to the `raw-data` volume. Qdrant and Neo4j are isolated behind
 the `intelligence` profile; the baseline detector and campaign engine continue without them.
 
 ## API
 
+- `GET /api/v1/auth/me`
+- `POST /api/v1/auth/tenants`
+- `POST /api/v1/auth/memberships`
+- `GET|POST /api/v1/auth/service-accounts`
+- `POST /api/v1/auth/service-accounts/{account_id}/keys/{key_id}/rotate`
+- `DELETE /api/v1/auth/service-accounts/{account_id}/keys/{key_id}`
 - `GET /api/v1/health`
 - `GET /api/v1/config`
 - `GET /api/v1/source-health`
@@ -164,6 +212,7 @@ the `intelligence` profile; the baseline detector and campaign engine continue w
 - `GET /api/v1/assets/{asset_id}/narratives`
 - `GET /api/v1/narratives/{narrative_id}`
 - `GET|POST /api/v1/operations/model-drift`
+- `GET /api/v1/operations/worker-checkpoints`
 - `GET|POST /api/v1/operations/policy-proposals`
 - `GET /api/v1/stream/alerts` (server-sent events)
 - `WS /api/v1/ws/alerts?after_id={redis_stream_id}`
@@ -181,3 +230,5 @@ the `intelligence` profile; the baseline detector and campaign engine continue w
 - [Phases 11-12 Implementation Report](docs/implementation/PHASE_11_12_IMPLEMENTATION_REPORT.md)
 - [Production Readiness](docs/operations/PRODUCTION_READINESS.md)
 - [Backup And Restore Runbook](docs/operations/BACKUP_RESTORE_RUNBOOK.md)
+- [CI/CD Pipeline](docs/operations/CI_CD_PIPELINE.md)
+- [Next Services Roadmap](docs/planning/NEXT_SERVICES_ROADMAP.md)

@@ -1,0 +1,42 @@
+groups:
+  - name: scam2market-slo-recording
+    interval: 30s
+    rules:
+      - record: scam2market:sli_availability:ratio_rate5m
+        expr: 1 - (sum(rate(scam2market_http_requests_total{status=~"5.."}[5m])) / clamp_min(sum(rate(scam2market_http_requests_total[5m])), 0.001))
+      - record: scam2market:sli_availability:ratio_rate1h
+        expr: 1 - (sum(rate(scam2market_http_requests_total{status=~"5.."}[1h])) / clamp_min(sum(rate(scam2market_http_requests_total[1h])), 0.001))
+      - record: scam2market:sli_latency:p95_seconds_rate5m
+        expr: histogram_quantile(0.95, sum by (le) (rate(scam2market_http_request_duration_seconds_bucket[5m])))
+      - record: scam2market:sli_dependency:minimum
+        expr: min(scam2market_dependency_healthy{dependency=~"postgres|redis"})
+  - name: scam2market-slo-alerts
+    rules:
+      - alert: Scam2MarketAvailabilityBudgetFastBurn
+        expr: (1 - scam2market:sli_availability:ratio_rate5m) > (14.4 * 0.001) and (1 - scam2market:sli_availability:ratio_rate1h) > (6 * 0.001)
+        for: 5m
+        labels: {severity: critical, slo: availability}
+        annotations:
+          summary: "Scam2Market is rapidly consuming its 99.9% availability budget"
+          runbook_url: "docs/operations/PRODUCTION_RUNBOOK.md#availability"
+      - alert: Scam2MarketApiLatencyHigh
+        expr: scam2market:sli_latency:p95_seconds_rate5m > 0.5
+        for: 15m
+        labels: {severity: warning, slo: latency}
+        annotations:
+          summary: "API p95 latency is above 500 ms"
+          runbook_url: "docs/operations/PRODUCTION_RUNBOOK.md#latency"
+      - alert: Scam2MarketRequiredDependencyDown
+        expr: scam2market:sli_dependency:minimum < 1
+        for: 2m
+        labels: {severity: critical, slo: pipeline}
+        annotations:
+          summary: "A required Scam2Market dependency is unavailable"
+          runbook_url: "docs/operations/PRODUCTION_RUNBOOK.md#dependency"
+      - alert: Scam2MarketNoApiTraffic
+        expr: absent(scam2market_http_requests_total)
+        for: 10m
+        labels: {severity: critical, slo: availability}
+        annotations:
+          summary: "No Scam2Market API telemetry is being received"
+          runbook_url: "docs/operations/PRODUCTION_RUNBOOK.md#telemetry"

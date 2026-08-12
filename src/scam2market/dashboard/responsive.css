@@ -1,0 +1,10 @@
+@media (max-width: 900px) {
+  nav {
+    align-items: center;
+    height: 58px;
+  }
+
+  .nav-item {
+    height: 42px;
+  }
+}

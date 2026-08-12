@@ -1,0 +1,19 @@
+{
+	email {$ACME_EMAIL}
+	admin off
+}
+
+{$SCAM2MARKET_DOMAIN} {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+	reverse_proxy api:8000 {
+		health_uri /api/v1/health
+		health_interval 15s
+	}
+}

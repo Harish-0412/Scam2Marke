@@ -23,6 +23,7 @@ dependencies = [
   "numpy>=1.26.0,<3",
   "prometheus-client>=0.21.0,<1",
   "httpx>=0.27.0,<1",
+  "PyJWT[crypto]>=2.9.0,<3",
   "opentelemetry-api>=1.27.0,<2",
   "opentelemetry-sdk>=1.27.0,<2",
   "opentelemetry-exporter-otlp-proto-http>=1.27.0,<2",
@@ -44,6 +45,7 @@ scam2market-narrative-worker = "scam2market.workers.graph_worker:main"
 scam2market-verification-worker = "scam2market.workers.verification_worker:main"
 scam2market-realtime-worker = "scam2market.workers.realtime_worker:main"
 scam2market-evidence-worker = "scam2market.workers.evidence_worker:main"
+scam2market-notification-worker = "scam2market.workers.notification_worker:main"
 
 [project.optional-dependencies]
 dev = [

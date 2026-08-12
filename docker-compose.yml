@@ -1,9 +1,13 @@
+x-backend-service: &backend-service
+  build: .
+  image: ${SCAM2MARKET_IMAGE:-scam2market-backend:local}
+
 services:
   api:
-    build: .
+    <<: *backend-service
     command: uvicorn scam2market.main:app --host 0.0.0.0 --port 8000 --reload
     env_file:
-      - .env.example
+      - "${SCAM2MARKET_ENV_FILE:-.env.example}"
     environment:
       DATABASE_URL: postgresql+asyncpg://scam2market:scam2market@postgres:5432/scam2market
       REDIS_URL: redis://redis:6379/0
@@ -30,28 +34,28 @@ services:
       retries: 20
 
   migrate:
-    build: .
+    <<: *backend-service
     command: alembic upgrade head
     env_file:
-      - .env.example
+      - "${SCAM2MARKET_ENV_FILE:-.env.example}"
     depends_on:
       postgres:
         condition: service_healthy
 
   topic-init:
-    build: .
+    <<: *backend-service
     command: python scripts/create_topics.py
     env_file:
-      - .env.example
+      - "${SCAM2MARKET_ENV_FILE:-.env.example}"
     depends_on:
       redpanda:
         condition: service_healthy
 
   feature-worker:
-    build: .
+    <<: *backend-service
     command: scam2market-feature-worker
     env_file:
-      - .env.example
+      - "${SCAM2MARKET_ENV_FILE:-.env.example}"
     volumes:
       - ./src:/app/src
     depends_on:
@@ -64,10 +68,10 @@ services:
     restart: unless-stopped
 
   intelligence-worker:
-    build: .
+    <<: *backend-service
     command: scam2market-intelligence-worker
     env_file:
-      - .env.example
+      - "${SCAM2MARKET_ENV_FILE:-.env.example}"
     volumes:
       - ./src:/app/src
     depends_on:
@@ -80,10 +84,10 @@ services:
     restart: unless-stopped
 
   campaign-worker:
-    build: .
+    <<: *backend-service
     command: scam2market-campaign-worker
     env_file:
-      - .env.example
+      - "${SCAM2MARKET_ENV_FILE:-.env.example}"
     volumes:
       - ./src:/app/src
     depends_on:
@@ -94,10 +98,10 @@ services:
     restart: unless-stopped
 
   realtime-worker:
-    build: .
+    <<: *backend-service
     command: scam2market-realtime-worker
     env_file:
-      - .env.example
+      - "${SCAM2MARKET_ENV_FILE:-.env.example}"
     volumes:
       - ./src:/app/src
     depends_on:
@@ -107,11 +111,25 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  notification-worker:
+    <<: *backend-service
+    command: scam2market-notification-worker
+    env_file:
+      - "${SCAM2MARKET_ENV_FILE:-.env.example}"
+    volumes:
+      - ./src:/app/src
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      topic-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
   evidence-worker:
-    build: .
+    <<: *backend-service
     command: scam2market-evidence-worker
     env_file:
-      - .env.example
+      - "${SCAM2MARKET_ENV_FILE:-.env.example}"
     volumes:
       - ./src:/app/src
     depends_on:
@@ -122,11 +140,11 @@ services:
     restart: unless-stopped
 
   narrative-worker:
-    build: .
+    <<: *backend-service
     command: scam2market-narrative-worker
     profiles: ["intelligence"]
     env_file:
-      - .env.example
+      - "${SCAM2MARKET_ENV_FILE:-.env.example}"
     volumes:
       - ./src:/app/src
     depends_on:
@@ -141,11 +159,11 @@ services:
     restart: unless-stopped
 
   verification-worker:
-    build: .
+    <<: *backend-service
     command: scam2market-verification-worker
     profiles: ["intelligence"]
     env_file:
-      - .env.example
+      - "${SCAM2MARKET_ENV_FILE:-.env.example}"
     volumes:
       - ./src:/app/src
     depends_on:
@@ -158,10 +176,10 @@ services:
     restart: unless-stopped
 
   outbox-worker:
-    build: .
+    <<: *backend-service
     command: scam2market-outbox-worker
     env_file:
-      - .env.example
+      - "${SCAM2MARKET_ENV_FILE:-.env.example}"
     volumes:
       - ./src:/app/src
     depends_on:
@@ -172,10 +190,10 @@ services:
     restart: unless-stopped
   
   threat-feed-worker:
-    build: .
+    <<: *backend-service
     command: python -m scam2market.workers.threat_feed_worker
     env_file:
-      - .env.example
+      - "${SCAM2MARKET_ENV_FILE:-.env.example}"
     volumes:
       - ./src:/app/src
     depends_on:
@@ -187,10 +205,10 @@ services:
         condition: service_healthy
 
   explainability-worker:
-    build: .
+    <<: *backend-service
     command: python -m scam2market.workers.explainability_worker
     env_file:
-      - .env.example
+      - "${SCAM2MARKET_ENV_FILE:-.env.example}"
     volumes:
       - ./src:/app/src
     depends_on:
@@ -201,10 +219,10 @@ services:
       redis:
         condition: service_healthy
   telemetry-persistence:
-    build: .
+    <<: *backend-service
     command: scam2market-telemetry-persistence
     env_file:
-      - .env.example
+      - "${SCAM2MARKET_ENV_FILE:-.env.example}"
     volumes:
       - ./src:/app/src
     depends_on:
@@ -217,10 +235,10 @@ services:
     restart: unless-stopped
 
   archive-worker:
-    build: .
+    <<: *backend-service
     command: scam2market-archive-worker
     env_file:
-      - .env.example
+      - "${SCAM2MARKET_ENV_FILE:-.env.example}"
     volumes:
       - ./src:/app/src
       - raw-data:/app/data/raw
@@ -234,18 +252,18 @@ services:
     restart: unless-stopped
 
   raw-volume-init:
-    build: .
+    <<: *backend-service
     user: root
     command: ["sh", "-c", "chown -R scam2market:scam2market /app/data/raw"]
     volumes:
       - raw-data:/app/data/raw
 
   market-ingestor:
-    build: .
+    <<: *backend-service
     command: scam2market-market-ingestor
-    profiles: ["demo"]
+    profiles: ["demo", "live"]
     env_file:
-      - .env.example
+      - "${SCAM2MARKET_ENV_FILE:-.env.example}"
     volumes:
       - ./src:/app/src
       - raw-data:/app/data/raw
@@ -256,11 +274,12 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
+    restart: on-failure
   explainability-service:
-    build: .
+    <<: *backend-service
     command: uvicorn scam2market.intelligence.explainability_service:app --host 0.0.0.0 --port 8001
     env_file:
-      - .env.example
+      - "${SCAM2MARKET_ENV_FILE:-.env.example}"
     ports:
       - "8001:8001"
     volumes:
@@ -270,10 +289,10 @@ services:
         condition: service_healthy
 
   threat-feed-service:
-    build: .
+    <<: *backend-service
     command: uvicorn scam2market.intelligence.threat_feed:app --host 0.0.0.0 --port 8002
     env_file:
-      - .env.example
+      - "${SCAM2MARKET_ENV_FILE:-.env.example}"
     ports:
       - "8002:8002"
     volumes:
@@ -283,11 +302,11 @@ services:
         condition: service_healthy
 
   social-ingestor:
-    build: .
+    <<: *backend-service
     command: scam2market-social-ingestor
-    profiles: ["demo"]
+    profiles: ["demo", "live"]
     env_file:
-      - .env.example
+      - "${SCAM2MARKET_ENV_FILE:-.env.example}"
     volumes:
       - ./src:/app/src
       - raw-data:/app/data/raw
@@ -298,13 +317,14 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
+    restart: on-failure
 
   replay-scheduler:
-    build: .
+    <<: *backend-service
     command: scam2market-replay
     profiles: ["demo"]
     env_file:
-      - .env.example
+      - "${SCAM2MARKET_ENV_FILE:-.env.example}"
     volumes:
       - ./src:/app/src
       - raw-data:/app/data/raw
@@ -317,10 +337,10 @@ services:
         condition: service_healthy
 
   replay-control-worker:
-    build: .
+    <<: *backend-service
     command: scam2market-replay-control
     env_file:
-      - .env.example
+      - "${SCAM2MARKET_ENV_FILE:-.env.example}"
     volumes:
       - ./src:/app/src
     depends_on:
@@ -432,6 +452,7 @@ services:
       - "9090:9090"
     volumes:
       - ./ops/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./ops/prometheus/rules:/etc/prometheus/rules:ro
       - prometheus-data:/prometheus
     depends_on:
       api:

@@ -1,5 +1,5 @@
 from functools import lru_cache
-from typing import Annotated, Any, cast
+from typing import Annotated, Any, Literal, cast
 
 from pydantic import AnyUrl, Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     )
     redis_url: str = "redis://localhost:6379/0"
     redpanda_bootstrap_servers: str = "localhost:19092"
+    kafka_security_protocol: Literal["PLAINTEXT", "SSL"] = "PLAINTEXT"
 
     neo4j_uri: str = "bolt://localhost:7687"
     neo4j_user: str = "neo4j"
@@ -50,6 +51,22 @@ class Settings(BaseSettings):
     rate_limit_fail_closed: bool = False
     service_api_key: str | None = None
     require_api_key: bool = False
+    auth_required: bool = False
+    development_auth_enabled: bool = True
+    default_tenant_id: str = "default"
+    oidc_issuer: str | None = None
+    oidc_audience: str | None = None
+    oidc_jwks_url: str | None = None
+    oidc_tenant_claim: str = "tenant_id"
+    oidc_roles_claim: str = "roles"
+    service_key_pepper: str = "development-only-service-key-pepper"
+    service_key_default_ttl_days: int = Field(default=90, ge=1, le=365)
+    notification_poll_interval_seconds: float = Field(default=1.0, ge=0.1, le=60)
+    calibration_min_samples: int = Field(default=20, ge=10, le=100_000)
+    calibration_max_ece: float = Field(default=0.12, ge=0, le=1)
+    calibration_min_auc: float = Field(default=0.65, ge=0, le=1)
+    promotion_max_false_positives: int = Field(default=5, ge=0, le=100_000)
+    promotion_brier_tolerance: float = Field(default=0.01, ge=0, le=1)
 
     allowed_origins: Annotated[list[str], NoDecode] = [
         "http://localhost:3000",
@@ -63,6 +80,15 @@ class Settings(BaseSettings):
     feature_allowed_lateness_seconds: int = Field(default=120, ge=0)
     feature_window_intervals_seconds: Annotated[list[int], NoDecode] = [60, 300]
     feature_source_idle_after_seconds: int = Field(default=300, gt=0)
+    market_provider: str = "synthetic"
+    live_market_symbols: Annotated[list[str], NoDecode] = ["BTCUSDT"]
+    binance_base_url: str = "https://api.binance.com"
+    market_poll_interval_seconds: float = Field(default=1.0, ge=0.1, le=60)
+    social_provider: str = "synthetic"
+    mastodon_base_url: str = "https://mastodon.social"
+    mastodon_access_token: str | None = None
+    social_rss_urls: Annotated[list[str], NoDecode] = []
+    social_poll_interval_seconds: float = Field(default=15.0, ge=1, le=900)
 
     @field_validator("allowed_origins", mode="before")
     @classmethod
@@ -77,6 +103,13 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             return [int(item.strip()) for item in value.split(",") if item.strip()]
         return cast(list[int], value)
+
+    @field_validator("live_market_symbols", "social_rss_urls", mode="before")
+    @classmethod
+    def parse_csv_list(cls, value: Any) -> list[str]:
+        if isinstance(value, str):
+            return [item.strip() for item in value.split(",") if item.strip()]
+        return cast(list[str], value)
 
     model_config = SettingsConfigDict(
         env_file=".env",

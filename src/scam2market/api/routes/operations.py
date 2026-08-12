@@ -7,8 +7,14 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from scam2market.db.models import AuditLogModel, ModelDriftEventModel, PolicyProposalModel
+from scam2market.db.models import (
+    AuditLogModel,
+    ModelDriftEventModel,
+    PolicyProposalModel,
+    WorkerCheckpointModel,
+)
 from scam2market.db.session import get_db_session
+from scam2market.security.auth import CurrentPrincipal
 
 router = APIRouter(prefix="/operations")
 
@@ -33,13 +39,47 @@ class PolicyDecision(BaseModel):
     reason: str = Field(min_length=5, max_length=2000)
 
 
+@router.get("/worker-checkpoints")
+async def list_worker_checkpoints(
+    consumer_group: str | None = None,
+    session: AsyncSession = Depends(get_db_session),
+) -> list[dict[str, Any]]:
+    query = select(WorkerCheckpointModel)
+    if consumer_group:
+        query = query.where(WorkerCheckpointModel.consumer_group == consumer_group)
+    rows = (
+        await session.scalars(
+            query.order_by(
+                WorkerCheckpointModel.consumer_group,
+                WorkerCheckpointModel.topic,
+                WorkerCheckpointModel.partition,
+            )
+        )
+    ).all()
+    return [
+        {
+            "consumer_group": row.consumer_group,
+            "topic": row.topic,
+            "partition": row.partition,
+            "last_durable_offset": row.last_durable_offset,
+            "state_version": row.feature_state_version,
+            "state_checksum": row.state_checksum,
+            "event_time": row.event_time,
+            "updated_at": row.updated_at,
+        }
+        for row in rows
+    ]
+
+
 @router.post("/model-drift", status_code=201)
 async def report_model_drift(
     body: DriftEventCreate,
+    principal: CurrentPrincipal,
     session: AsyncSession = Depends(get_db_session),
 ) -> dict[str, Any]:
     state = "DRIFTED" if body.drift_score >= body.threshold else "STABLE"
     event = ModelDriftEventModel(
+        tenant_id=principal.tenant_id,
         model_family=body.model_family,
         model_version=body.model_version,
         drift_score=body.drift_score,
@@ -56,11 +96,14 @@ async def report_model_drift(
 
 @router.get("/model-drift")
 async def list_model_drift(
+    principal: CurrentPrincipal,
     model_family: str | None = None,
     limit: int = Query(default=100, ge=1, le=500),
     session: AsyncSession = Depends(get_db_session),
 ) -> list[dict[str, Any]]:
-    query = select(ModelDriftEventModel)
+    query = select(ModelDriftEventModel).where(
+        ModelDriftEventModel.tenant_id == principal.tenant_id
+    )
     if model_family:
         query = query.where(ModelDriftEventModel.model_family == model_family)
     rows = (
@@ -73,9 +116,11 @@ async def list_model_drift(
 async def create_policy_proposal(
     body: PolicyProposalCreate,
     actor_id: Annotated[str, Header(alias="X-Actor-ID")],
+    principal: CurrentPrincipal,
     session: AsyncSession = Depends(get_db_session),
 ) -> dict[str, Any]:
     proposal = PolicyProposalModel(
+        tenant_id=principal.tenant_id,
         name=body.name,
         description=body.description,
         details_json=body.details,
@@ -89,10 +134,11 @@ async def create_policy_proposal(
 
 @router.get("/policy-proposals")
 async def list_policy_proposals(
+    principal: CurrentPrincipal,
     proposal_status: str | None = Query(default=None, alias="status"),
     session: AsyncSession = Depends(get_db_session),
 ) -> list[dict[str, Any]]:
-    query = select(PolicyProposalModel)
+    query = select(PolicyProposalModel).where(PolicyProposalModel.tenant_id == principal.tenant_id)
     if proposal_status:
         query = query.where(PolicyProposalModel.status == proposal_status.upper())
     rows = (await session.scalars(query.order_by(PolicyProposalModel.created_at.desc()))).all()
@@ -117,6 +163,7 @@ async def decide_policy_proposal(
     proposal.reviewed_at = datetime.now(tz=UTC)
     session.add(
         AuditLogModel(
+            tenant_id=proposal.tenant_id,
             actor_id=actor_id,
             action=f"{body.status}_POLICY_PROPOSAL",
             target_type="POLICY_PROPOSAL",

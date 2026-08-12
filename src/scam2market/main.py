@@ -1,16 +1,19 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from scam2market.api.router import api_router
 from scam2market.common.errors import register_exception_handlers
 from scam2market.common.logging import configure_logging, get_logger
 from scam2market.common.middleware import CorrelationIdMiddleware
 from scam2market.config.settings import get_settings
+from scam2market.db.session import engine
 from scam2market.monitoring.telemetry import PrometheusMiddleware, configure_tracing
-from scam2market.security.rate_limiter import ApiKeyMiddleware, RateLimitMiddleware
+from scam2market.security.rate_limiter import RateLimitMiddleware
 
 logger = get_logger(__name__)
 
@@ -21,6 +24,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     configure_logging(settings.log_level)
     logger.info("application_starting", extra={"environment": settings.environment})
     yield
+    await engine.dispose()
     logger.info("application_stopping", extra={"environment": settings.environment})
 
 
@@ -36,7 +40,6 @@ def create_app() -> FastAPI:
     app.add_middleware(CorrelationIdMiddleware)
     app.add_middleware(PrometheusMiddleware)
     app.add_middleware(RateLimitMiddleware)
-    app.add_middleware(ApiKeyMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.allowed_origins,
@@ -47,6 +50,8 @@ def create_app() -> FastAPI:
 
     register_exception_handlers(app)
     app.include_router(api_router, prefix="/api/v1")
+    dashboard_dir = Path(__file__).with_name("dashboard")
+    app.mount("/dashboard", StaticFiles(directory=dashboard_dir, html=True), name="dashboard")
     configure_tracing(
         app,
         service_name="scam2market-api",
