@@ -823,6 +823,66 @@
         "title": "ConnectorRunResponse",
         "type": "object"
       },
+      "ContributionDirection": {
+        "enum": [
+          "RISK_INCREASING",
+          "RISK_REDUCING",
+          "NEUTRAL"
+        ],
+        "title": "ContributionDirection",
+        "type": "string"
+      },
+      "DecisionTrace": {
+        "properties": {
+          "adjustments": {
+            "items": {
+              "$ref": "#/components/schemas/ScoreAdjustment"
+            },
+            "title": "Adjustments",
+            "type": "array"
+          },
+          "components": {
+            "items": {
+              "$ref": "#/components/schemas/TraceComponent"
+            },
+            "title": "Components",
+            "type": "array"
+          },
+          "final_score": {
+            "title": "Final Score",
+            "type": "number"
+          },
+          "policy_decisions": {
+            "items": {
+              "$ref": "#/components/schemas/PolicyDecision-Output"
+            },
+            "title": "Policy Decisions",
+            "type": "array"
+          },
+          "raw_weighted_score": {
+            "title": "Raw Weighted Score",
+            "type": "number"
+          },
+          "thresholds": {
+            "$ref": "#/components/schemas/ThresholdConfig"
+          },
+          "version": {
+            "default": "fusion-decision-trace-v1",
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "components",
+          "adjustments",
+          "policy_decisions",
+          "thresholds",
+          "raw_weighted_score",
+          "final_score"
+        ],
+        "title": "DecisionTrace",
+        "type": "object"
+      },
       "DependencyStatus": {
         "properties": {
           "detail": {
@@ -1521,6 +1581,28 @@
         "title": "MembershipCreate",
         "type": "object"
       },
+      "MissingReason": {
+        "enum": [
+          "SOURCE_UNAVAILABLE",
+          "SOURCE_IDLE",
+          "SOURCE_DEGRADED",
+          "INSUFFICIENT_HISTORY",
+          "NO_OBSERVATIONS",
+          "NOT_PROVIDED",
+          "INVALID_ORDERBOOK",
+          "INSUFFICIENT_PEER_DATA",
+          "NOT_READY",
+          "QDRANT_DEGRADED",
+          "NEO4J_DEGRADED",
+          "NO_NARRATIVE",
+          "NO_CLAIM",
+          "INSUFFICIENT_GRAPH",
+          "VERIFICATION_UNKNOWN",
+          "TIMEOUT"
+        ],
+        "title": "MissingReason",
+        "type": "string"
+      },
       "ModelArtifactCreate": {
         "properties": {
           "artifact_hash": {
@@ -1591,6 +1673,61 @@
         "title": "ModelArtifactCreate",
         "type": "object"
       },
+      "ModelExplanationResponse": {
+        "properties": {
+          "decision_trace": {
+            "$ref": "#/components/schemas/DecisionTrace"
+          },
+          "explanation_hash": {
+            "title": "Explanation Hash",
+            "type": "string"
+          },
+          "explanation_id": {
+            "format": "uuid",
+            "title": "Explanation Id",
+            "type": "string"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "method": {
+            "title": "Method",
+            "type": "string"
+          },
+          "model_score_id": {
+            "format": "uuid",
+            "title": "Model Score Id",
+            "type": "string"
+          },
+          "scope_id": {
+            "title": "Scope Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "explanation_id",
+          "model_score_id",
+          "method",
+          "version",
+          "scope_id",
+          "status",
+          "explanation_hash",
+          "generated_at",
+          "decision_trace"
+        ],
+        "title": "ModelExplanationResponse",
+        "type": "object"
+      },
       "NarrativeResponse": {
         "properties": {
           "asset_id": {
@@ -1657,7 +1794,7 @@
         "title": "NarrativeResponse",
         "type": "object"
       },
-      "PolicyDecision": {
+      "PolicyDecision-Input": {
         "properties": {
           "reason": {
             "maxLength": 2000,
@@ -1676,6 +1813,39 @@
         },
         "required": [
           "status",
+          "reason"
+        ],
+        "title": "PolicyDecision",
+        "type": "object"
+      },
+      "PolicyDecision-Output": {
+        "properties": {
+          "after": {
+            "title": "After",
+            "type": "number"
+          },
+          "applied": {
+            "title": "Applied",
+            "type": "boolean"
+          },
+          "before": {
+            "title": "Before",
+            "type": "number"
+          },
+          "policy": {
+            "title": "Policy",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "policy",
+          "applied",
+          "before",
+          "after",
           "reason"
         ],
         "title": "PolicyDecision",
@@ -1806,6 +1976,49 @@
         ],
         "title": "Role",
         "type": "string"
+      },
+      "ScoreAdjustment": {
+        "properties": {
+          "after": {
+            "title": "After",
+            "type": "number"
+          },
+          "before": {
+            "title": "Before",
+            "type": "number"
+          },
+          "delta": {
+            "title": "Delta",
+            "type": "number"
+          },
+          "direction": {
+            "$ref": "#/components/schemas/ContributionDirection"
+          },
+          "factor": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Factor"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "before",
+          "delta",
+          "after",
+          "direction"
+        ],
+        "title": "ScoreAdjustment",
+        "type": "object"
       },
       "ScoreResponse": {
         "properties": {
@@ -2558,6 +2771,325 @@
         "title": "TenantCreate",
         "type": "object"
       },
+      "ThreatContextResponse": {
+        "properties": {
+          "asset_id": {
+            "title": "Asset Id",
+            "type": "string"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "cutoff": {
+            "format": "date-time",
+            "title": "Cutoff",
+            "type": "string"
+          },
+          "match_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Match Ids",
+            "type": "array"
+          },
+          "scope_id": {
+            "title": "Scope Id",
+            "type": "string"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "snapshot_id": {
+            "format": "uuid",
+            "title": "Snapshot Id",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ThreatContextStatus"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "snapshot_id",
+          "scope_id",
+          "asset_id",
+          "cutoff",
+          "status",
+          "score",
+          "confidence",
+          "match_ids",
+          "version"
+        ],
+        "title": "ThreatContextResponse",
+        "type": "object"
+      },
+      "ThreatContextStatus": {
+        "enum": [
+          "DISABLED",
+          "UNAVAILABLE",
+          "STALE",
+          "NO_MATCH",
+          "MATCHED"
+        ],
+        "title": "ThreatContextStatus",
+        "type": "string"
+      },
+      "ThreatFeedStatusResponse": {
+        "properties": {
+          "accepted_count": {
+            "title": "Accepted Count",
+            "type": "integer"
+          },
+          "error_count": {
+            "title": "Error Count",
+            "type": "integer"
+          },
+          "fetched_count": {
+            "title": "Fetched Count",
+            "type": "integer"
+          },
+          "last_attempt_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Attempt At"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "last_success_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Success At"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "rate_limited_until": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rate Limited Until"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "status",
+          "last_attempt_at",
+          "last_success_at",
+          "rate_limited_until",
+          "fetched_count",
+          "accepted_count",
+          "error_count",
+          "last_error"
+        ],
+        "title": "ThreatFeedStatusResponse",
+        "type": "object"
+      },
+      "ThreatIndicatorResponse": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "confidence": {
+            "title": "Confidence",
+            "type": "number"
+          },
+          "first_seen": {
+            "format": "date-time",
+            "title": "First Seen",
+            "type": "string"
+          },
+          "indicator_id": {
+            "title": "Indicator Id",
+            "type": "string"
+          },
+          "indicator_type": {
+            "title": "Indicator Type",
+            "type": "string"
+          },
+          "last_seen": {
+            "format": "date-time",
+            "title": "Last Seen",
+            "type": "string"
+          },
+          "normalized_value": {
+            "title": "Normalized Value",
+            "type": "string"
+          },
+          "tlp": {
+            "title": "Tlp",
+            "type": "string"
+          }
+        },
+        "required": [
+          "indicator_id",
+          "indicator_type",
+          "normalized_value",
+          "active",
+          "first_seen",
+          "last_seen",
+          "tlp",
+          "confidence"
+        ],
+        "title": "ThreatIndicatorResponse",
+        "type": "object"
+      },
+      "ThreatMatchResponse": {
+        "properties": {
+          "asset_id": {
+            "title": "Asset Id",
+            "type": "string"
+          },
+          "confidence": {
+            "title": "Confidence",
+            "type": "number"
+          },
+          "event_time": {
+            "format": "date-time",
+            "title": "Event Time",
+            "type": "string"
+          },
+          "evidence_cutoff": {
+            "format": "date-time",
+            "title": "Evidence Cutoff",
+            "type": "string"
+          },
+          "indicator_id": {
+            "title": "Indicator Id",
+            "type": "string"
+          },
+          "indicator_type": {
+            "title": "Indicator Type",
+            "type": "string"
+          },
+          "match_id": {
+            "format": "uuid",
+            "title": "Match Id",
+            "type": "string"
+          },
+          "match_type": {
+            "title": "Match Type",
+            "type": "string"
+          },
+          "matched_value": {
+            "title": "Matched Value",
+            "type": "string"
+          },
+          "post_id": {
+            "title": "Post Id",
+            "type": "string"
+          },
+          "scope_id": {
+            "title": "Scope Id",
+            "type": "string"
+          },
+          "tlp": {
+            "title": "Tlp",
+            "type": "string"
+          }
+        },
+        "required": [
+          "match_id",
+          "scope_id",
+          "asset_id",
+          "post_id",
+          "indicator_id",
+          "indicator_type",
+          "matched_value",
+          "match_type",
+          "event_time",
+          "evidence_cutoff",
+          "confidence",
+          "tlp"
+        ],
+        "title": "ThreatMatchResponse",
+        "type": "object"
+      },
+      "ThresholdConfig": {
+        "properties": {
+          "critical": {
+            "default": 0.8,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Critical",
+            "type": "number"
+          },
+          "high": {
+            "default": 0.6,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "High",
+            "type": "number"
+          },
+          "version": {
+            "default": "fusion-thresholds-v1",
+            "title": "Version",
+            "type": "string"
+          },
+          "watch": {
+            "default": 0.35,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Watch",
+            "type": "number"
+          }
+        },
+        "title": "ThresholdConfig",
+        "type": "object"
+      },
       "TimelineEvent": {
         "properties": {
           "data": {
@@ -2606,6 +3138,65 @@
           "data"
         ],
         "title": "TimelineEventResponse",
+        "type": "object"
+      },
+      "TraceComponent": {
+        "properties": {
+          "configured_weight": {
+            "title": "Configured Weight",
+            "type": "number"
+          },
+          "direction": {
+            "$ref": "#/components/schemas/ContributionDirection"
+          },
+          "effective_normalized_weight": {
+            "title": "Effective Normalized Weight",
+            "type": "number"
+          },
+          "missing": {
+            "title": "Missing",
+            "type": "boolean"
+          },
+          "missing_reason": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MissingReason"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "signed_weighted_contribution": {
+            "title": "Signed Weighted Contribution",
+            "type": "number"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "name",
+          "value",
+          "configured_weight",
+          "effective_normalized_weight",
+          "signed_weighted_contribution",
+          "direction",
+          "missing"
+        ],
+        "title": "TraceComponent",
         "type": "object"
       },
       "ValidationError": {
@@ -4520,6 +5111,193 @@
         ]
       }
     },
+    "/api/v1/intelligence/assets/{asset_id}/threat-context": {
+      "get": {
+        "operationId": "get_asset_threat_context_api_v1_intelligence_assets__asset_id__threat_context_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "title": "Asset Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scope_id",
+            "required": false,
+            "schema": {
+              "default": "LIVE",
+              "maxLength": 128,
+              "title": "Scope Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cutoff",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cutoff"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThreatContextResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Asset Threat Context",
+        "tags": [
+          "intelligence",
+          "explainability"
+        ]
+      }
+    },
+    "/api/v1/intelligence/threat/feed-status": {
+      "get": {
+        "operationId": "get_threat_feed_status_api_v1_intelligence_threat_feed_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThreatFeedStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Threat Feed Status",
+        "tags": [
+          "intelligence",
+          "explainability"
+        ]
+      }
+    },
+    "/api/v1/intelligence/threat/indicators": {
+      "get": {
+        "operationId": "list_threat_indicators_api_v1_intelligence_threat_indicators_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ThreatIndicatorResponse"
+                  },
+                  "title": "Response List Threat Indicators Api V1 Intelligence Threat Indicators Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Threat Indicators",
+        "tags": [
+          "intelligence",
+          "explainability"
+        ]
+      }
+    },
+    "/api/v1/intelligence/threat/matches/{match_id}": {
+      "get": {
+        "operationId": "get_threat_match_api_v1_intelligence_threat_matches__match_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "match_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Match Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThreatMatchResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Threat Match",
+        "tags": [
+          "intelligence",
+          "explainability"
+        ]
+      }
+    },
     "/api/v1/investigations": {
       "get": {
         "operationId": "list_investigations_api_v1_investigations_get",
@@ -5020,6 +5798,50 @@
         "tags": [
           "model governance",
           "feedback"
+        ]
+      }
+    },
+    "/api/v1/model-scores/{model_score_id}/explanation": {
+      "get": {
+        "operationId": "get_model_explanation_api_v1_model_scores__model_score_id__explanation_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "model_score_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Model Score Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelExplanationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Model Explanation",
+        "tags": [
+          "intelligence",
+          "explainability"
         ]
       }
     },
@@ -5723,7 +6545,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/PolicyDecision"
+                "$ref": "#/components/schemas/PolicyDecision-Input"
               }
             }
           },

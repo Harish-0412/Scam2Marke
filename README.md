@@ -547,3 +547,30 @@ Research:
 
 - [Technical Paper Source](docs/research/Scam2Market_Technical_Paper.md)
 - Technical paper Word document: `docs/research/Scam2Market_Technical_Paper.docx`
+### Explainability and threat intelligence
+
+Fusion scores contain a deterministic `fusion-decision-trace-v1` generated from the exact scoring
+calculation. The trace records configured and effective normalized weights, missing inputs, signed
+contributions, legitimate-event/calibration/threat adjustments, thresholds, and policy floors,
+caps, and severity demotions. `model_score_id` is deterministic from the score idempotency identity.
+The explainability worker consumes `model.fusion.score.v1` and stores the trace one-to-one in
+`model_explanations`; Kafka offsets are committed only after the database transaction succeeds.
+The older `explainability_outputs` table is deprecated and remains unused solely for migration
+safety.
+
+OTX integration uses the DirectConnect REST endpoint at the fixed HTTPS
+`otx.alienvault.com` host. Set `OTX_API_KEY` to enable bounded incremental polling. Without a key,
+the threat worker records `DISABLED`, sleeps cleanly, and baseline fusion remains available.
+Provider observations are normalized into canonical domain, URL, IP, file hash, email, and wallet
+indicators. Exact matches against social text/URLs are linked to resolved asset mentions and are
+eligible for fusion only when both the post event and local provider fetch precede the score cutoff.
+Threat matches provide capped positive corroboration and cannot independently raise a score to
+`HIGH` or `CRITICAL`.
+
+Authenticated endpoints:
+
+- `GET /api/v1/model-scores/{model_score_id}/explanation`
+- `GET /api/v1/intelligence/threat/indicators`
+- `GET /api/v1/intelligence/assets/{asset_id}/threat-context`
+- `GET /api/v1/intelligence/threat/matches/{match_id}`
+- `GET /api/v1/intelligence/threat/feed-status`

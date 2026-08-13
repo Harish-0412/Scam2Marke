@@ -6,7 +6,8 @@ from scam2market.config.settings import get_settings
 from scam2market.db.session import AsyncSessionLocal
 from scam2market.features.schemas import FeatureSnapshot
 from scam2market.ingestion.repositories import SqlScoreRepository
-from scam2market.intelligence.fusion import DetectionService
+from scam2market.intelligence.fusion import DetectionService, FusionEngine
+from scam2market.intelligence.repository import IntelligenceRepository
 from scam2market.schemas.events import EventType
 from scam2market.state import RedisStateStore
 from scam2market.streaming.consumer import EventConsumer
@@ -35,6 +36,10 @@ async def run() -> None:
         repository=SqlScoreRepository(AsyncSessionLocal),
         state=state,
         publisher=publisher,
+        fusion=FusionEngine(threat_uplift_cap=settings.threat_uplift_cap),
+        threat_repository=IntelligenceRepository(AsyncSessionLocal),
+        threat_enabled=settings.otx_api_key is not None,
+        threat_freshness_seconds=settings.threat_freshness_seconds,
     )
     await publisher.start()
     try:

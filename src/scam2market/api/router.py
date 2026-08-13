@@ -7,6 +7,7 @@ from scam2market.api.routes import (
     evaluation,
     evidence,
     health,
+    intelligence,
     model_governance,
     notifications,
     operations,
@@ -35,4 +36,7 @@ api_router.include_router(
 )
 api_router.include_router(
     verification.router, tags=["official verification"], dependencies=protected
+)
+api_router.include_router(
+    intelligence.router, tags=["intelligence", "explainability"], dependencies=protected
 )

@@ -490,6 +490,7 @@ class ModelScoreModel(Base):
     model_score_id: Mapped[PyUUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid4, server_default=func.gen_random_uuid()
     )
+    scope_id: Mapped[str] = mapped_column(String(128), nullable=False, default="LIVE", index=True)
     asset_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     feature_window_id: Mapped[PyUUID] = mapped_column(
         ForeignKey("feature_windows.feature_window_id"), nullable=False, index=True
@@ -510,6 +511,9 @@ class ModelScoreModel(Base):
     claim_risk: Mapped[float | None] = mapped_column(Float)
     legitimate_event_score: Mapped[float | None] = mapped_column(Float)
     graph_score: Mapped[float | None] = mapped_column(Float)
+    threat_snapshot_id: Mapped[PyUUID | None] = mapped_column(UUID(as_uuid=True), index=True)
+    threat_context_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    decision_trace_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     market_anomaly_risk: Mapped[float | None] = mapped_column(Float)
     market_anomaly_severity: Mapped[str] = mapped_column(String(32), nullable=False)
     social_coordination_risk: Mapped[float | None] = mapped_column(Float)
@@ -978,13 +982,115 @@ class ThreatIndicatorModel(TimestampMixin, Base):
     __tablename__ = "threat_indicators"
 
     indicator_id: Mapped[str] = mapped_column(String(128), primary_key=True)
-    indicator_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    indicator_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    normalized_value: Mapped[str] = mapped_column(Text, nullable=False)
+    value_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    valid_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    valid_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     source: Mapped[str] = mapped_column(String(64), nullable=False)
     severity: Mapped[str] = mapped_column(String(32), nullable=False)
     description: Mapped[str] = mapped_column(Text)
     raw_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     first_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class ThreatObservationModel(Base):
+    __tablename__ = "threat_observations"
+    __table_args__ = (
+        UniqueConstraint("provider", "provider_indicator_id", name="uq_threat_provider_indicator"),
+    )
+
+    observation_id: Mapped[PyUUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    indicator_id: Mapped[str] = mapped_column(
+        ForeignKey("threat_indicators.indicator_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    provider: Mapped[str] = mapped_column(String(32), nullable=False)
+    provider_indicator_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    pulse_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    tlp: Mapped[str] = mapped_column(String(16), nullable=False, default="WHITE")
+    confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    tags_json: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+    raw_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    observed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class ThreatFeedStatusModel(Base):
+    __tablename__ = "threat_feed_status"
+
+    provider: Mapped[str] = mapped_column(String(32), primary_key=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    checkpoint_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    last_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    rate_limited_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    fetched_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    accepted_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    error_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_error: Mapped[str | None] = mapped_column(Text)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ThreatMatchModel(Base):
+    __tablename__ = "threat_matches"
+
+    match_id: Mapped[PyUUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    scope_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    asset_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    post_id: Mapped[str] = mapped_column(
+        ForeignKey("social_posts.post_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    indicator_id: Mapped[str] = mapped_column(
+        ForeignKey("threat_indicators.indicator_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    observation_id: Mapped[PyUUID] = mapped_column(
+        ForeignKey("threat_observations.observation_id", ondelete="CASCADE"), nullable=False
+    )
+    match_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    matched_value: Mapped[str] = mapped_column(Text, nullable=False)
+    event_time: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+    evidence_cutoff: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ThreatContextSnapshotModel(Base):
+    __tablename__ = "threat_context_snapshots"
+
+    snapshot_id: Mapped[PyUUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    scope_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    asset_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    cutoff: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    score: Mapped[float | None] = mapped_column(Float)
+    confidence: Mapped[float | None] = mapped_column(Float)
+    match_ids_json: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+    version: Mapped[str] = mapped_column(String(64), nullable=False)
+    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class ModelExplanationModel(Base):
+    __tablename__ = "model_explanations"
+
+    explanation_id: Mapped[PyUUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    model_score_id: Mapped[PyUUID] = mapped_column(
+        ForeignKey("model_scores.model_score_id", ondelete="CASCADE"), nullable=False, unique=True
+    )
+    method: Mapped[str] = mapped_column(String(64), nullable=False)
+    version: Mapped[str] = mapped_column(String(64), nullable=False)
+    scope_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    explanation_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    explanation_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class ExplainabilityOutputModel(TimestampMixin, Base):

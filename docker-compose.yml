@@ -203,7 +203,7 @@ services:
   
   threat-feed-worker:
     <<: *backend-service
-    command: python -m scam2market.workers.threat_feed_worker
+    command: scam2market-threat-feed-worker
     env_file:
       - "${SCAM2MARKET_ENV_FILE:-.env.example}"
     volumes:
@@ -215,10 +215,11 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
+    restart: unless-stopped
 
   explainability-worker:
     <<: *backend-service
-    command: python -m scam2market.workers.explainability_worker
+    command: scam2market-explainability-worker
     env_file:
       - "${SCAM2MARKET_ENV_FILE:-.env.example}"
     volumes:
@@ -230,6 +231,7 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
+    restart: unless-stopped
   telemetry-persistence:
     <<: *backend-service
     command: scam2market-telemetry-persistence
@@ -287,32 +289,6 @@ services:
       redis:
         condition: service_healthy
     restart: on-failure
-  explainability-service:
-    <<: *backend-service
-    command: uvicorn scam2market.intelligence.explainability_service:app --host 0.0.0.0 --port 8001
-    env_file:
-      - "${SCAM2MARKET_ENV_FILE:-.env.example}"
-    ports:
-      - "8001:8001"
-    volumes:
-      - ./src:/app/src
-    depends_on:
-      redis:
-        condition: service_healthy
-
-  threat-feed-service:
-    <<: *backend-service
-    command: uvicorn scam2market.intelligence.threat_feed:app --host 0.0.0.0 --port 8002
-    env_file:
-      - "${SCAM2MARKET_ENV_FILE:-.env.example}"
-    ports:
-      - "8002:8002"
-    volumes:
-      - ./src:/app/src
-    depends_on:
-      redis:
-        condition: service_healthy
-
   social-ingestor:
     <<: *backend-service
     command: scam2market-social-ingestor

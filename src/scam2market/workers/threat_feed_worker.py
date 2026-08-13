@@ -1,76 +1,76 @@
 import asyncio
-import logging
-import os
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
-from scam2market.db.models import ThreatIndicatorModel
+from scam2market.common.logging import configure_logging, get_logger
+from scam2market.config.settings import get_settings
 from scam2market.db.session import AsyncSessionLocal
-from scam2market.intelligence.otx_client import JsonObject, OTXClient
+from scam2market.intelligence.otx_client import OTXClient, OTXRateLimited
+from scam2market.intelligence.repository import IntelligenceRepository
 
-logger = logging.getLogger(__name__)
-
-
-async def fetch_and_store_indicators() -> None:
-    client = OTXClient()
-    try:
-        async for pulse in client.fetch_pulses():
-            raw_indicators = pulse.get("objects", [])
-            if not isinstance(raw_indicators, list):
-                logger.warning("otx_pulse_objects_not_list")
-                continue
-            async with AsyncSessionLocal() as session, session.begin():
-                for raw_indicator in raw_indicators:
-                    if not isinstance(raw_indicator, dict):
-                        continue
-                    indicator: JsonObject = {
-                        str(key): value for key, value in raw_indicator.items()
-                    }
-                    indicator_id = indicator.get("id")
-                    if not isinstance(indicator_id, str) or not indicator_id:
-                        continue
-                    first_seen = _parse_datetime(indicator.get("created"))
-                    last_seen = _parse_datetime(indicator.get("modified")) or first_seen
-                    if first_seen is None:
-                        logger.warning(
-                            "otx_indicator_missing_created_at",
-                            extra={"indicator_id": indicator_id},
-                        )
-                        continue
-                    await session.merge(
-                        ThreatIndicatorModel(
-                            indicator_id=indicator_id,
-                            indicator_type=str(indicator.get("type", "unknown")),
-                            source="OTX",
-                            severity=str(indicator.get("severity", "low")),
-                            description=str(indicator.get("description", "")),
-                            raw_json=indicator,
-                            first_seen=first_seen,
-                            last_seen=last_seen,
-                        )
-                    )
-    finally:
-        await client.close()
+logger = get_logger(__name__)
 
 
-def _parse_datetime(value: object) -> datetime | None:
-    if not isinstance(value, str) or not value:
-        return None
-    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
+async def poll_once(client: OTXClient, repository: IntelligenceRepository) -> tuple[int, int]:
+    pulses = []
+    modified_since = await repository.feed_modified_since()
+    async for pulse in client.fetch_pulses(
+        modified_since=modified_since,
+        page_size=get_settings().otx_page_size,
+        max_pages=get_settings().otx_max_pages,
+        max_records=get_settings().otx_max_records,
+    ):
+        pulses.append(pulse)
+    now = datetime.now(tz=UTC)
+    accepted, watermark = await repository.ingest_pulses(pulses, now)
+    matched = await repository.backfill_recent_matches(since=modified_since)
+    checkpoint = {"modified_since": watermark.isoformat()} if watermark else {}
+    await repository.update_feed_status(
+        status="HEALTHY",
+        checkpoint=checkpoint,
+        fetched=len(pulses),
+        accepted=accepted,
+        success=True,
+    )
+    logger.info(
+        "threat_feed_poll_completed",
+        extra={"fetched": len(pulses), "accepted": accepted, "matched": matched},
+    )
+    return len(pulses), accepted
 
 
 async def run() -> None:
-    logger.info("Starting Threat Feed Worker")
-    if not os.getenv("OTX_API_KEY"):
-        logger.warning("threat_feed_disabled", extra={"reason": "OTX_API_KEY_NOT_CONFIGURED"})
+    settings = get_settings()
+    configure_logging(settings.log_level)
+    repository = IntelligenceRepository(AsyncSessionLocal)
+    if settings.otx_api_key is None:
+        await repository.update_feed_status(status="DISABLED")
+        logger.info("threat_feed_disabled", extra={"reason": "OTX_API_KEY_NOT_CONFIGURED"})
         while True:
-            await asyncio.sleep(3600)
-    while True:
-        try:
-            await fetch_and_store_indicators()
-        except Exception:
-            logger.exception("threat_feed_poll_failed")
-        await asyncio.sleep(300)
+            await asyncio.sleep(settings.otx_poll_interval_seconds)
+    client = OTXClient(
+        settings.otx_api_key.get_secret_value(),
+        base_url=settings.otx_base_url,
+        timeout=settings.otx_timeout_seconds,
+        max_response_bytes=settings.otx_max_response_bytes,
+    )
+    try:
+        while True:
+            try:
+                await poll_once(client, repository)
+            except OTXRateLimited as exc:
+                delay = exc.retry_after if isinstance(exc.retry_after, float) else 300.0
+                until = datetime.now(tz=UTC) + timedelta(seconds=delay)
+                await repository.update_feed_status(
+                    status="RATE_LIMITED", error=str(exc), rate_limited_until=until
+                )
+                await asyncio.sleep(delay)
+                continue
+            except Exception as exc:
+                logger.exception("threat_feed_poll_failed")
+                await repository.update_feed_status(status="ERROR", error=type(exc).__name__)
+            await asyncio.sleep(settings.otx_poll_interval_seconds)
+    finally:
+        await client.close()
 
 
 def main() -> None:

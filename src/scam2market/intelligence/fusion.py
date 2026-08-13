@@ -58,7 +58,70 @@ class MissingOutput(BaseModel):
     reason: MissingReason
 
 
+class ContributionDirection(StrEnum):
+    risk_increasing = "RISK_INCREASING"
+    risk_reducing = "RISK_REDUCING"
+    neutral = "NEUTRAL"
+
+
+class TraceComponent(BaseModel):
+    name: str
+    value: float | None
+    configured_weight: float
+    effective_normalized_weight: float
+    signed_weighted_contribution: float
+    direction: ContributionDirection
+    missing: bool
+    missing_reason: MissingReason | None = None
+
+
+class ScoreAdjustment(BaseModel):
+    name: str
+    before: float
+    factor: float | None = None
+    delta: float
+    after: float
+    direction: ContributionDirection
+
+
+class PolicyDecision(BaseModel):
+    policy: str
+    applied: bool
+    before: float
+    after: float
+    reason: str
+
+
+class DecisionTrace(BaseModel):
+    version: str = "fusion-decision-trace-v1"
+    components: list[TraceComponent]
+    adjustments: list[ScoreAdjustment]
+    policy_decisions: list[PolicyDecision]
+    thresholds: ThresholdConfig
+    raw_weighted_score: float
+    final_score: float
+
+
+class ThreatContextStatus(StrEnum):
+    disabled = "DISABLED"
+    unavailable = "UNAVAILABLE"
+    stale = "STALE"
+    no_match = "NO_MATCH"
+    matched = "MATCHED"
+
+
+class ThreatContext(BaseModel):
+    status: ThreatContextStatus = ThreatContextStatus.disabled
+    score: float | None = Field(default=None, ge=0, le=1)
+    confidence: float | None = Field(default=None, ge=0, le=1)
+    snapshot_id: str | None = None
+    match_ids: list[str] = Field(default_factory=list)
+    cutoff: datetime | None = None
+    version: str = "threat-context-v1"
+
+
 class FusionResult(BaseModel):
+    model_score_id: str = ""
     scope_id: str = "LIVE"
     asset_id: str
     feature_window_id: str
@@ -78,6 +141,7 @@ class FusionResult(BaseModel):
     claim_risk: float | None
     legitimate_event_score: float | None
     graph_score: float | None
+    threat_context: ThreatContext = Field(default_factory=ThreatContext)
     market_anomaly_risk: float | None = Field(default=None, ge=0, le=1)
     market_anomaly_severity: RiskLevel
     social_coordination_risk: float | None = Field(default=None, ge=0, le=1)
@@ -94,11 +158,24 @@ class FusionResult(BaseModel):
     liquidity_class: str
     liquidity_confidence: float = Field(ge=0, le=1)
     stage_signals: dict[str, float | None]
+    decision_trace: DecisionTrace
     scored_at: datetime
 
 
 class ScoreRepository(Protocol):
     async def persist(self, result: FusionResult) -> bool: ...
+
+
+class ThreatContextRepository(Protocol):
+    async def threat_context(
+        self,
+        scope_id: str,
+        asset_id: str,
+        cutoff: datetime,
+        *,
+        enabled: bool,
+        freshness_seconds: int,
+    ) -> ThreatContext: ...
 
 
 class ScoreCalibrator(Protocol):
@@ -115,10 +192,12 @@ class FusionEngine:
         weights: FusionWeights | None = None,
         thresholds: ThresholdConfig | None = None,
         calibrator: ScoreCalibrator | None = None,
+        threat_uplift_cap: float = 0.10,
     ) -> None:
         self._weights = weights or FusionWeights()
         self._thresholds = thresholds or ThresholdConfig()
         self._calibrator = calibrator
+        self._threat_uplift_cap = threat_uplift_cap
 
     def fuse(
         self,
@@ -128,6 +207,7 @@ class FusionEngine:
         claim_risk: float | None = None,
         legitimate_event_score: float | None = None,
         graph_score: float | None = None,
+        threat_context: ThreatContext | None = None,
         market_regime: str,
         market_regime_confidence: float,
         liquidity_class: str,
@@ -144,7 +224,36 @@ class FusionEngine:
             if value is not None:
                 weighted_sum += float(weight) * float(value)
                 available_weight += float(weight)
-        raw_score = weighted_sum / available_weight if available_weight else 0.0
+        raw_weighted_score = weighted_sum / available_weight if available_weight else 0.0
+        components = []
+        for name, configured_weight in self._weights.model_dump().items():
+            value = detector_values.get(name)
+            effective_weight = (
+                float(configured_weight) / available_weight if value is not None else 0.0
+            )
+            contribution = float(value) * effective_weight if value is not None else 0.0
+            output = detector_outputs.get(name)
+            components.append(
+                TraceComponent(
+                    name=name,
+                    value=float(value) if value is not None else None,
+                    configured_weight=float(configured_weight),
+                    effective_normalized_weight=effective_weight,
+                    signed_weighted_contribution=contribution,
+                    direction=(
+                        ContributionDirection.risk_increasing
+                        if contribution > 0
+                        else ContributionDirection.neutral
+                    ),
+                    missing=value is None,
+                    missing_reason=(
+                        (output.missing_reason or MissingReason.no_observations)
+                        if output is not None and value is None
+                        else (MissingReason.not_provided if value is None else None)
+                    ),
+                )
+            )
+        raw_score = raw_weighted_score
         market_score = detector_values.get("market_score")
         corroborating_scores = [
             detector_values.get("social_score"),
@@ -191,7 +300,9 @@ class FusionEngine:
         )
         raw_score = max(0.0, min(1.0, raw_score))
         is_calibrated = self._calibrator is not None and baseline_confidence >= 0.5
+        adjustments: list[ScoreAdjustment] = []
         if is_calibrated and self._calibrator is not None:
+            before_calibration = raw_score
             raw_score = max(
                 0.0,
                 min(
@@ -203,17 +314,104 @@ class FusionEngine:
                     ),
                 ),
             )
+            adjustments.append(
+                ScoreAdjustment(
+                    name="calibration",
+                    before=before_calibration,
+                    delta=raw_score - before_calibration,
+                    after=raw_score,
+                    direction=_direction(raw_score - before_calibration),
+                )
+            )
         legitimate_adjustment = 1.0 - 0.35 * max(0.0, min(1.0, legitimate_event_score or 0.0))
         adjusted_score = raw_score * legitimate_adjustment
+        adjustments.append(
+            ScoreAdjustment(
+                name="legitimate_event",
+                before=raw_score,
+                factor=legitimate_adjustment,
+                delta=adjusted_score - raw_score,
+                after=adjusted_score,
+                direction=_direction(adjusted_score - raw_score),
+            )
+        )
+        threat_context = threat_context or ThreatContext()
+        threat_before = adjusted_score
+        if (
+            threat_context.status == ThreatContextStatus.matched
+            and threat_context.score is not None
+        ):
+            uplift = min(
+                self._threat_uplift_cap,
+                threat_context.score * (threat_context.confidence or 0.0) * self._threat_uplift_cap,
+            )
+            adjusted_score = min(1.0, adjusted_score + uplift)
+            adjustments.append(
+                ScoreAdjustment(
+                    name="threat_intelligence_uplift",
+                    before=threat_before,
+                    delta=adjusted_score - threat_before,
+                    after=adjusted_score,
+                    direction=ContributionDirection.risk_increasing,
+                )
+            )
+        elif threat_context.status in {ThreatContextStatus.unavailable, ThreatContextStatus.stale}:
+            confidence *= 0.85
+        policies: list[PolicyDecision] = []
         if (
             market_score is not None
             and market_score >= 0.65
             and detector_values.get("coordination_score") is not None
             and float(detector_values["coordination_score"] or 0.0) >= 0.65
         ):
+            before = adjusted_score
             adjusted_score = max(adjusted_score, self._thresholds.watch)
+            policies.append(
+                PolicyDecision(
+                    policy="corroborated_watch_floor",
+                    applied=True,
+                    before=before,
+                    after=adjusted_score,
+                    reason="market and coordination scores are at least 0.65",
+                )
+            )
         if market_score is None or market_score < 0.35:
+            before = adjusted_score
             adjusted_score = min(adjusted_score, self._thresholds.high - 0.01)
+            policies.append(
+                PolicyDecision(
+                    policy="market_evidence_high_cap",
+                    applied=before != adjusted_score,
+                    before=before,
+                    after=adjusted_score,
+                    reason="market score is missing or below 0.35",
+                )
+            )
+        else:
+            policies.append(
+                PolicyDecision(
+                    policy="market_evidence_high_cap",
+                    applied=False,
+                    before=adjusted_score,
+                    after=adjusted_score,
+                    reason="market score meets the 0.35 evidence requirement",
+                )
+            )
+        if (
+            threat_context.status == ThreatContextStatus.matched
+            and threat_before < self._thresholds.high
+        ):
+            before = adjusted_score
+            adjusted_score = min(adjusted_score, self._thresholds.high - 0.01)
+            policies.append(
+                PolicyDecision(
+                    policy="threat_cannot_independently_raise_high",
+                    applied=before != adjusted_score,
+                    before=before,
+                    after=adjusted_score,
+                    reason="threat context is corroborating evidence only",
+                )
+            )
 
         social_values = [
             (detector_values.get("social_score"), 0.30),
@@ -231,8 +429,26 @@ class FusionEngine:
         if severity == RiskLevel.critical and not (
             market_score is not None and market_score >= 0.65 and corroborated and confidence >= 0.4
         ):
+            policies.append(
+                PolicyDecision(
+                    policy="critical_requires_corroboration",
+                    applied=True,
+                    before=adjusted_score,
+                    after=adjusted_score,
+                    reason="severity demoted from CRITICAL to HIGH",
+                )
+            )
             severity = RiskLevel.high
         if market_score is None and severity in {RiskLevel.high, RiskLevel.critical}:
+            policies.append(
+                PolicyDecision(
+                    policy="missing_market_severity_demotion",
+                    applied=True,
+                    before=adjusted_score,
+                    after=adjusted_score,
+                    reason="severity demoted to WATCH because market score is missing",
+                )
+            )
             severity = RiskLevel.watch
         has_graph = graph_score is not None
         has_verification = claim_risk is not None or legitimate_event_score is not None
@@ -266,6 +482,7 @@ class FusionEngine:
             claim_risk=claim_risk,
             legitimate_event_score=legitimate_event_score,
             graph_score=graph_score,
+            threat_context=threat_context,
             market_anomaly_risk=market_anomaly_risk,
             market_anomaly_severity=self._severity(market_anomaly_risk or 0.0),
             social_coordination_risk=social_coordination_risk,
@@ -289,6 +506,14 @@ class FusionEngine:
                 "buy_sell_pressure": _optional_float(snapshot.features["buy_sell_pressure"]),
                 "mention_count": _optional_float(snapshot.features["mention_count"]),
             },
+            decision_trace=DecisionTrace(
+                components=components,
+                adjustments=adjustments,
+                policy_decisions=policies,
+                thresholds=self._thresholds,
+                raw_weighted_score=raw_weighted_score,
+                final_score=adjusted_score,
+            ),
             scored_at=datetime.now(tz=UTC),
         )
 
@@ -310,11 +535,17 @@ class DetectionService:
         state: OnlineStateStore,
         publisher: CanonicalEventPublisher,
         fusion: FusionEngine | None = None,
+        threat_repository: ThreatContextRepository | None = None,
+        threat_enabled: bool = False,
+        threat_freshness_seconds: int = 86400,
     ) -> None:
         self._repository = repository
         self._state = state
         self._publisher = publisher
         self._fusion = fusion or FusionEngine()
+        self._threat_repository = threat_repository
+        self._threat_enabled = threat_enabled
+        self._threat_freshness_seconds = threat_freshness_seconds
         self._market = MarketAnomalyDetector()
         self._social = SocialSurgeDetector()
         self._coordination = CoordinationHeuristicDetector()
@@ -331,7 +562,16 @@ class DetectionService:
         graph_score: float | None = None,
         graph_snapshot_id: str | None = None,
         verification_snapshot_id: str | None = None,
+        threat_context: ThreatContext | None = None,
     ) -> FusionResult:
+        if threat_context is None and self._threat_repository is not None:
+            threat_context = await self._threat_repository.threat_context(
+                snapshot.scope_id,
+                snapshot.asset_id,
+                snapshot.window_end,
+                enabled=self._threat_enabled,
+                freshness_seconds=self._threat_freshness_seconds,
+            )
         outputs = [
             self._market.score(snapshot),
             self._social.score(snapshot),
@@ -346,6 +586,7 @@ class DetectionService:
             claim_risk=claim_risk,
             legitimate_event_score=legitimate_event_score,
             graph_score=graph_score,
+            threat_context=threat_context,
             market_regime=regime.value,
             market_regime_confidence=regime_confidence,
             liquidity_class=liquidity.value,
@@ -356,6 +597,7 @@ class DetectionService:
             for key, value in {
                 "graph_snapshot_id": graph_snapshot_id,
                 "verification_snapshot_id": verification_snapshot_id,
+                "threat_snapshot_id": threat_context.snapshot_id if threat_context else None,
             }.items()
             if value is not None
         }
@@ -371,8 +613,10 @@ class DetectionService:
         idempotency_key = hashlib.sha256(
             json.dumps(identity, sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest()
+        model_score_id = str(uuid5(NAMESPACE_URL, f"model-score:{idempotency_key}"))
         result = result.model_copy(
             update={
+                "model_score_id": model_score_id,
                 "input_snapshot_ids": input_snapshot_ids,
                 "idempotency_key": idempotency_key,
             }
@@ -418,6 +662,14 @@ class DetectionService:
 
 def _optional_float(value: float | int | None) -> float | None:
     return float(value) if value is not None else None
+
+
+def _direction(delta: float) -> ContributionDirection:
+    if delta > 0:
+        return ContributionDirection.risk_increasing
+    if delta < 0:
+        return ContributionDirection.risk_reducing
+    return ContributionDirection.neutral
 
 
 class InMemoryScoreRepository:

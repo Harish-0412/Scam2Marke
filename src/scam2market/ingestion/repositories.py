@@ -412,6 +412,8 @@ class SqlScoreRepository:
                 async with session.begin():
                     session.add(
                         ModelScoreModel(
+                            model_score_id=UUID(result.model_score_id),
+                            scope_id=result.scope_id,
                             asset_id=result.asset_id,
                             feature_window_id=UUID(result.feature_window_id),
                             feature_revision=result.feature_revision,
@@ -430,6 +432,13 @@ class SqlScoreRepository:
                             claim_risk=result.claim_risk,
                             legitimate_event_score=result.legitimate_event_score,
                             graph_score=result.graph_score,
+                            threat_snapshot_id=(
+                                UUID(result.threat_context.snapshot_id)
+                                if result.threat_context.snapshot_id
+                                else None
+                            ),
+                            threat_context_json=result.threat_context.model_dump(mode="json"),
+                            decision_trace_json=result.decision_trace.model_dump(mode="json"),
                             market_anomaly_risk=result.market_anomaly_risk,
                             market_anomaly_severity=result.market_anomaly_severity.value,
                             social_coordination_risk=result.social_coordination_risk,

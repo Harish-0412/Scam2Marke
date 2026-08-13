@@ -1,5 +1,4 @@
 import asyncio
-import os
 from datetime import UTC, datetime
 from typing import Any
 
@@ -10,7 +9,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from scam2market.config.settings import get_settings
-from scam2market.db.models import EventIngestionLogModel
+from scam2market.db.models import EventIngestionLogModel, ThreatFeedStatusModel
 from scam2market.db.session import engine, get_db_session
 from scam2market.monitoring.telemetry import (
     metric_snapshot,
@@ -79,11 +78,7 @@ async def readiness(response: Response) -> ReadinessResponse:
             "neo4j": DependencyStatus(status="optional", required=False),
             "qdrant": DependencyStatus(status="optional", required=False),
             "mlflow": DependencyStatus(status="optional", required=False),
-            "otx": DependencyStatus(
-                status="configured" if os.getenv("OTX_API_KEY") else "disabled",
-                required=False,
-                detail=None if os.getenv("OTX_API_KEY") else "OTX_API_KEY is not configured",
-            ),
+            "otx": await _threat_feed_health(),
         }
     )
     unavailable = [
@@ -135,12 +130,13 @@ async def source_health(
     market_age_ms = int((now - market_at).total_seconds() * 1000) if market_at else None
     social_age_s = int((now - social_at).total_seconds()) if social_at else None
     status_value = "ok" if market_at and social_at else "not_started"
+    threat_status = await session.get(ThreatFeedStatusModel, "OTX")
     return SourceHealthResponse(
         market_data_age_ms=market_age_ms,
         social_data_age_s=social_age_s,
         graph_last_updated_s=None,
         disclosure_index_age_s=None,
-        threat_feed_status="configured" if os.getenv("OTX_API_KEY") else "disabled",
+        threat_feed_status=threat_status.status.lower() if threat_status else "not_started",
         status=status_value,
     )
 
@@ -176,3 +172,11 @@ async def _probe_redis() -> tuple[str, DependencyStatus]:
     latency = round((asyncio.get_running_loop().time() - started) * 1000, 2)
     set_dependency_health("redis", True)
     return "redis", DependencyStatus(status="ok", required=True, latency_ms=latency)
+
+
+async def _threat_feed_health() -> DependencyStatus:
+    async with engine.connect() as connection:
+        value = await connection.scalar(
+            select(ThreatFeedStatusModel.status).where(ThreatFeedStatusModel.provider == "OTX")
+        )
+    return DependencyStatus(status=str(value or "not_started").lower(), required=False)

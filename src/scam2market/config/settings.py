@@ -1,7 +1,7 @@
 from functools import lru_cache
 from typing import Annotated, Any, Literal, cast
 
-from pydantic import AnyUrl, Field, field_validator
+from pydantic import AnyUrl, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -69,6 +69,16 @@ class Settings(BaseSettings):
     calibration_min_auc: float = Field(default=0.65, ge=0, le=1)
     promotion_max_false_positives: int = Field(default=5, ge=0, le=100_000)
     promotion_brier_tolerance: float = Field(default=0.01, ge=0, le=1)
+    otx_api_key: SecretStr | None = None
+    otx_base_url: str = "https://otx.alienvault.com/api/v1/"
+    otx_poll_interval_seconds: float = Field(default=300, ge=30, le=86400)
+    otx_timeout_seconds: float = Field(default=15, gt=0, le=120)
+    otx_page_size: int = Field(default=100, ge=1, le=500)
+    otx_max_pages: int = Field(default=5, ge=1, le=50)
+    otx_max_records: int = Field(default=1000, ge=1, le=10000)
+    otx_max_response_bytes: int = Field(default=2_000_000, ge=1024, le=10_000_000)
+    threat_freshness_seconds: int = Field(default=86400, ge=60)
+    threat_uplift_cap: float = Field(default=0.10, ge=0, le=0.25)
 
     allowed_origins: Annotated[list[str], NoDecode] = [
         "http://localhost:3000",
