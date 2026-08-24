@@ -101,6 +101,11 @@ class Settings(BaseSettings):
     mastodon_access_token: str | None = None
     social_rss_urls: Annotated[list[str], NoDecode] = []
     social_poll_interval_seconds: float = Field(default=15.0, ge=1, le=900)
+    ollama_enabled: bool = False
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_model: str = "llama3.1:8b"
+    ollama_timeout_seconds: float = Field(default=30.0, gt=0, le=300)
+    ollama_max_prompt_characters: int = Field(default=6000, ge=1000, le=50000)
 
     @field_validator("allowed_origins", mode="before")
     @classmethod
