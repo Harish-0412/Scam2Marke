@@ -13,8 +13,10 @@ from pydantic import BaseModel, Field
 
 from scam2market.common.time import utc_now
 from scam2market.ingestion.quality import SourceQualityTracker
+from scam2market.monitoring.telemetry import GUARDRAIL_REJECTIONS
 from scam2market.schemas.domain import Asset, AssetMention, SocialPost
 from scam2market.schemas.events import CanonicalEvent, EventType, ReplayMetadata, TraceMetadata
+from scam2market.security.guardrails import inspect_ingestion_payload, inspect_social_payload
 from scam2market.state import DedupeStore, OnlineStateStore
 from scam2market.streaming.publisher import CanonicalEventPublisher
 
@@ -294,6 +296,14 @@ class SocialIngestionService:
     async def ingest(self, event: CanonicalEvent) -> bool:
         if event.event_type != EventType.social_post_received:
             raise ValueError(f"unsupported social event type: {event.event_type}")
+        payload_decision = inspect_ingestion_payload(
+            dict(event.payload), event_time=event.event_time, source_trust=1.0
+        )
+        social_decision = inspect_social_payload(dict(event.payload))
+        if not payload_decision.accepted or not social_decision.accepted:
+            for reason in (*payload_decision.reasons, *social_decision.reasons):
+                GUARDRAIL_REJECTIONS.labels(reason).inc()
+            return False
         raw = RawSocialPost.model_validate(event.payload)
         dedupe_key = event.dedupe_key()
         if not await self._dedupe.claim(dedupe_key):
