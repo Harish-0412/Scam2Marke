@@ -7,8 +7,10 @@ from uuid import NAMESPACE_URL, uuid5
 
 from scam2market.common.time import utc_now
 from scam2market.ingestion.quality import SourceQualityTracker
+from scam2market.monitoring.telemetry import GUARDRAIL_REJECTIONS
 from scam2market.schemas.domain import MarketCandle, MarketTrade, OrderBookUpdate
 from scam2market.schemas.events import CanonicalEvent, EventType, ReplayMetadata
+from scam2market.security.guardrails import inspect_ingestion_payload, inspect_market_payload
 from scam2market.state import DedupeStore, OnlineStateStore
 from scam2market.streaming.publisher import CanonicalEventPublisher
 
@@ -224,6 +226,14 @@ class MarketIngestionService:
         self._quality = quality
 
     async def ingest(self, event: CanonicalEvent) -> bool:
+        payload_decision = inspect_ingestion_payload(
+            dict(event.payload), event_time=event.event_time, source_trust=1.0
+        )
+        market_decision = inspect_market_payload(dict(event.payload))
+        if not payload_decision.accepted or not market_decision.accepted:
+            for reason in (*payload_decision.reasons, *market_decision.reasons):
+                GUARDRAIL_REJECTIONS.labels(reason).inc()
+            return False
         datum = normalize_market_event(event)
         dedupe_key = event.dedupe_key()
         if not await self._dedupe.claim(dedupe_key):
