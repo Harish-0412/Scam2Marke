@@ -74,6 +74,17 @@ def inspect_ingestion_payload(
     return GuardrailDecision(not reasons, tuple(reasons), min(1.0, len(reasons) * 0.4))
 
 
+def inspect_social_payload(payload: dict[str, Any]) -> GuardrailDecision:
+    text = str(payload.get("text") or "")
+    decision = inspect_untrusted_text(text)
+    reasons = list(decision.reasons)
+    engagement = payload.get("engagement")
+    if isinstance(engagement, dict):
+        for key, value in engagement.items():
+            if isinstance(value, int | float) and (not isfinite(float(value)) or float(value) < 0):
+                reasons.append(f"INVALID_ENGAGEMENT_{str(key).upper()[:32]}")
+    return GuardrailDecision(not reasons, tuple(dict.fromkeys(reasons)), min(1.0, 0.35))
+
 def inspect_market_payload(payload: dict[str, Any]) -> GuardrailDecision:
     reasons: list[str] = []
     for key, value in payload.items():
