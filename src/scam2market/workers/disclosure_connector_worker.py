@@ -10,11 +10,13 @@ from scam2market.config.settings import get_settings
 from scam2market.db.models import SourceConnectorRunModel, SourcePolicyModel
 from scam2market.db.session import AsyncSessionLocal
 from scam2market.narratives.embeddings import DeterministicHashEmbedding, InMemoryVectorIndex
+from scam2market.resilience.circuit_breaker import CircuitBreaker, CircuitOpenError
 from scam2market.verification.connectors import ConnectorError, build_connector
 from scam2market.verification.repository import SqlVerificationRepository
 from scam2market.verification.service import DisclosureIngestionService
 
 logger = get_logger(__name__)
+_POLICY_CIRCUITS: dict[str, CircuitBreaker] = {}
 
 
 async def poll_once(client: httpx.AsyncClient | None = None) -> None:
@@ -102,7 +104,16 @@ async def _run_policy(
             timeout_seconds=timeout_seconds,
         )
         previous_checkpoint = dict(checkpoint)
-        batch = await connector.fetch(previous_checkpoint)
+        settings = get_settings()
+        circuit = _POLICY_CIRCUITS.setdefault(
+            str(policy.source_policy_id),
+            CircuitBreaker(
+                f"disclosure-policy:{policy.source_policy_id}",
+                failure_threshold=settings.circuit_failure_threshold,
+                recovery_seconds=settings.circuit_recovery_seconds,
+            ),
+        )
+        batch = await circuit.call(lambda: connector.fetch(previous_checkpoint))
         fetched = len(batch.documents)
         next_checkpoint = batch.checkpoint
         next_watermark = batch.source_watermark
@@ -131,7 +142,11 @@ async def _run_policy(
     except Exception as exc:
         errors = 1
         status = (
-            "RATE_LIMITED" if isinstance(exc, ConnectorError) and exc.rate_limited else "FAILED"
+            "RATE_LIMITED"
+            if isinstance(exc, ConnectorError) and exc.rate_limited
+            else "CIRCUIT_OPEN"
+            if isinstance(exc, CircuitOpenError)
+            else "FAILED"
         )
         error_json = {"type": type(exc).__name__, "message": str(exc)}
     completed = datetime.now(tz=UTC)
