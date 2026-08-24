@@ -1,7 +1,22 @@
 import re
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from math import isfinite
 from typing import Any
+
+_MARKET_NON_NEGATIVE_FIELDS = {
+    "price",
+    "quantity",
+    "volume",
+    "open",
+    "high",
+    "low",
+    "close",
+    "best_bid",
+    "best_ask",
+    "top_bid_depth",
+    "top_ask_depth",
+}
 
 _INJECTION_PATTERNS = (
     re.compile(r"ignore\s+(all\s+)?previous\s+instructions", re.IGNORECASE),
@@ -57,3 +72,37 @@ def inspect_ingestion_payload(
     if len(str(payload)) > 1_000_000:
         reasons.append("PAYLOAD_TOO_LARGE")
     return GuardrailDecision(not reasons, tuple(reasons), min(1.0, len(reasons) * 0.4))
+
+
+def inspect_market_payload(payload: dict[str, Any]) -> GuardrailDecision:
+    reasons: list[str] = []
+    for key, value in payload.items():
+        if isinstance(value, int | float):
+            if not isfinite(float(value)):
+                reasons.append("NON_FINITE_NUMERIC_VALUE")
+            elif key in _MARKET_NON_NEGATIVE_FIELDS and float(value) < 0:
+                reasons.append(f"NEGATIVE_{key.upper()}")
+    best_bid = _number(payload.get("best_bid"))
+    best_ask = _number(payload.get("best_ask"))
+    if best_bid is not None and best_ask is not None and best_bid > best_ask:
+        reasons.append("CROSSED_ORDERBOOK")
+    for side in ("bids", "asks"):
+        levels = payload.get(side)
+        if isinstance(levels, list):
+            for level in levels[:50]:
+                if not isinstance(level, (list, tuple)) or len(level) < 2:
+                    reasons.append("MALFORMED_ORDERBOOK_LEVEL")
+                    break
+                price = _number(level[0])
+                quantity = _number(level[1])
+                if price is None or quantity is None or price < 0 or quantity < 0:
+                    reasons.append("INVALID_ORDERBOOK_LEVEL")
+                    break
+    return GuardrailDecision(not reasons, tuple(dict.fromkeys(reasons)), min(1.0, 0.3))
+
+
+def _number(value: object) -> float | None:
+    if not isinstance(value, int | float):
+        return None
+    number = float(value)
+    return number if isfinite(number) else None
