@@ -5,6 +5,7 @@ from scam2market.config.settings import get_settings
 from scam2market.ingestion.live_providers import BinanceMarketProvider
 from scam2market.ingestion.market import MarketIngestionService, SyntheticProvider
 from scam2market.ingestion.quality import SourceQualityTracker
+from scam2market.resilience.circuit_breaker import CircuitBreaker
 from scam2market.state import RedisStateStore
 from scam2market.streaming.publisher import EventPublisher
 
@@ -29,6 +30,11 @@ async def run() -> None:
                 settings.live_market_symbols,
                 base_url=settings.binance_base_url,
                 poll_interval_seconds=settings.market_poll_interval_seconds,
+                circuit_breaker=CircuitBreaker(
+                    "binance-market-provider",
+                    failure_threshold=settings.circuit_failure_threshold,
+                    recovery_seconds=settings.circuit_recovery_seconds,
+                ),
             )
             if settings.market_provider.lower() == "binance"
             else SyntheticProvider()

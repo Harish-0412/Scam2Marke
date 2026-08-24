@@ -13,6 +13,7 @@ import httpx
 from scam2market.common.time import utc_now
 from scam2market.ingestion.market import MarketDatum, _datum_id, _event_type
 from scam2market.ingestion.social import RawSocialPost
+from scam2market.resilience.circuit_breaker import CircuitBreaker
 from scam2market.schemas.domain import MarketCandle, MarketTrade, OrderBookUpdate
 from scam2market.schemas.events import CanonicalEvent, EventType
 
@@ -31,6 +32,7 @@ class BinanceMarketProvider:
         client_factory: Callable[[], httpx.AsyncClient] | None = None,
         max_polls: int | None = None,
         clock: Callable[[], datetime] = utc_now,
+        circuit_breaker: CircuitBreaker | None = None,
     ) -> None:
         if not symbols:
             raise ValueError("at least one Binance symbol is required")
@@ -42,6 +44,7 @@ class BinanceMarketProvider:
         )
         self._max_polls = max_polls
         self._clock = clock
+        self._circuit = circuit_breaker or CircuitBreaker(f"binance:{self._base_url}")
         self._last_trade_id: dict[str, int] = {}
         self._last_candle_open: dict[str, int] = {}
         self._emission_sequence: dict[str, int] = {}
@@ -54,7 +57,9 @@ class BinanceMarketProvider:
             while self._max_polls is None or poll < self._max_polls:
                 poll += 1
                 for symbol in self._symbols:
-                    for datum, _ in await self._fetch_symbol(client, symbol):
+                    for datum, _ in await self._circuit.call(
+                        lambda symbol=symbol: self._fetch_symbol(client, symbol)
+                    ):
                         sequence = self._emission_sequence.get(symbol, 0) + 1
                         self._emission_sequence[symbol] = sequence
                         yield _market_event(datum, self.source, sequence, self._clock())
