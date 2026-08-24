@@ -156,6 +156,7 @@ class MastodonSocialProvider:
         access_token: str | None = None,
         client_factory: Callable[[], httpx.AsyncClient] | None = None,
         max_polls: int | None = None,
+        circuit_breaker: CircuitBreaker | None = None,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._poll_interval = poll_interval_seconds
@@ -166,6 +167,7 @@ class MastodonSocialProvider:
         self._max_polls = max_polls
         self._since_id: str | None = None
         self._sequence = 0
+        self._circuit = circuit_breaker or CircuitBreaker(f"mastodon:{self._base_url}")
 
     async def stream(self, replay_session_id: str | None = None) -> AsyncIterator[CanonicalEvent]:
         if replay_session_id is not None:
@@ -177,7 +179,9 @@ class MastodonSocialProvider:
                 params: dict[str, str | int] = {"limit": 40}
                 if self._since_id:
                     params["since_id"] = self._since_id
-                response = await client.get("/api/v1/timelines/public", params=params)
+                response = await self._circuit.call(
+                    lambda params=params: client.get("/api/v1/timelines/public", params=params)
+                )
                 try:
                     response.raise_for_status()
                 except httpx.HTTPStatusError as exc:
@@ -222,6 +226,7 @@ class RssSocialProvider:
         poll_interval_seconds: float = 60,
         client_factory: Callable[[], httpx.AsyncClient] | None = None,
         max_polls: int | None = None,
+        circuit_breaker: CircuitBreaker | None = None,
     ) -> None:
         if not urls:
             raise ValueError("at least one RSS URL is required")
@@ -230,6 +235,7 @@ class RssSocialProvider:
         self._client_factory = client_factory or (lambda: httpx.AsyncClient(timeout=15))
         self._max_polls = max_polls
         self._seen: set[str] = set()
+        self._circuit = circuit_breaker or CircuitBreaker("rss-social-provider")
 
     async def stream(self, replay_session_id: str | None = None) -> AsyncIterator[CanonicalEvent]:
         if replay_session_id is not None:
@@ -239,7 +245,7 @@ class RssSocialProvider:
             while self._max_polls is None or poll < self._max_polls:
                 poll += 1
                 for url in self._urls:
-                    response = await client.get(url)
+                    response = await self._circuit.call(lambda url=url: client.get(url))
                     response.raise_for_status()
                     for post in _parse_rss(response.content, url):
                         if post.source_post_id in self._seen:

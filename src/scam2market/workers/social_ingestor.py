@@ -12,6 +12,7 @@ from scam2market.ingestion.social import (
     SocialProvider,
     SyntheticSocialProvider,
 )
+from scam2market.resilience.circuit_breaker import CircuitBreaker
 from scam2market.schemas.domain import Asset, AssetType
 from scam2market.state import RedisStateStore
 from scam2market.streaming.publisher import EventPublisher
@@ -63,15 +64,29 @@ async def run() -> None:
                 base_url=settings.mastodon_base_url,
                 access_token=settings.mastodon_access_token,
                 poll_interval_seconds=settings.social_poll_interval_seconds,
+                circuit_breaker=CircuitBreaker(
+                    "mastodon-social-provider",
+                    failure_threshold=settings.circuit_failure_threshold,
+                    recovery_seconds=settings.circuit_recovery_seconds,
+                ),
             )
         elif settings.social_provider.lower() == "rss":
             provider = RssSocialProvider(
                 settings.social_rss_urls,
                 poll_interval_seconds=settings.social_poll_interval_seconds,
+                circuit_breaker=CircuitBreaker(
+                    "rss-social-provider",
+                    failure_threshold=settings.circuit_failure_threshold,
+                    recovery_seconds=settings.circuit_recovery_seconds,
+                ),
             )
         else:
             provider = SyntheticSocialProvider()
-        count = await service.run_provider(provider)
+        count = await service.run_provider(
+            provider,
+            max_batch_size=settings.stream_batch_size,
+            max_wait_seconds=settings.stream_batch_wait_seconds,
+        )
         logger.info("social_ingestion_complete", extra={"accepted_event_count": count})
     finally:
         await publisher.stop()
