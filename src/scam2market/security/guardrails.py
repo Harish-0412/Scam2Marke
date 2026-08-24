@@ -5,9 +5,14 @@ from typing import Any
 
 _INJECTION_PATTERNS = (
     re.compile(r"ignore\s+(all\s+)?previous\s+instructions", re.IGNORECASE),
+    re.compile(r"disregard\s+(all\s+)?(prior|previous)\s+instructions", re.IGNORECASE),
+    re.compile(r"forget\s+(all\s+)?(prior|previous)\s+instructions", re.IGNORECASE),
+    re.compile(r"you\s+are\s+now\s+(in\s+)?(developer|admin|root)\s+mode", re.IGNORECASE),
     re.compile(r"reveal\s+(the\s+)?(system|developer)\s+prompt", re.IGNORECASE),
     re.compile(r"<\s*(system|assistant|tool)\s*>", re.IGNORECASE),
+    re.compile(r"</\s*(system|assistant|tool)\s*>", re.IGNORECASE),
     re.compile(r"jailbreak|prompt\s+injection", re.IGNORECASE),
+    re.compile(r"print\s+(the\s+)?hidden\s+(prompt|policy)", re.IGNORECASE),
 )
 
 
