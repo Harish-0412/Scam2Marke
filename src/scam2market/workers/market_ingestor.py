@@ -39,7 +39,11 @@ async def run() -> None:
             if settings.market_provider.lower() == "binance"
             else SyntheticProvider()
         )
-        count = await service.run_provider(provider)
+        count = await service.run_provider(
+            provider,
+            max_batch_size=settings.stream_batch_size,
+            max_wait_seconds=settings.stream_batch_wait_seconds,
+        )
         logger.info("market_ingestion_complete", extra={"accepted_event_count": count})
     finally:
         await publisher.stop()

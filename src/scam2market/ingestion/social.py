@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 from scam2market.common.time import utc_now
 from scam2market.ingestion.quality import SourceQualityTracker
 from scam2market.monitoring.telemetry import GUARDRAIL_REJECTIONS
+from scam2market.resilience.batching import bounded_batches
 from scam2market.schemas.domain import Asset, AssetMention, SocialPost
 from scam2market.schemas.events import CanonicalEvent, EventType, ReplayMetadata, TraceMetadata
 from scam2market.security.guardrails import inspect_ingestion_payload, inspect_social_payload
@@ -388,9 +389,19 @@ class SocialIngestionService:
             raise
 
     async def run_provider(
-        self, provider: SocialProvider, replay_session_id: str | None = None
+        self,
+        provider: SocialProvider,
+        replay_session_id: str | None = None,
+        *,
+        max_batch_size: int = 50,
+        max_wait_seconds: float = 0.25,
     ) -> int:
         accepted = 0
-        async for event in provider.stream(replay_session_id):
-            accepted += int(await self.ingest(event))
+        async for batch in bounded_batches(
+            provider.stream(replay_session_id),
+            max_batch_size=max_batch_size,
+            max_wait_seconds=max_wait_seconds,
+        ):
+            for event in batch:
+                accepted += int(await self.ingest(event))
         return accepted

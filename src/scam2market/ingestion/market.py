@@ -8,6 +8,7 @@ from uuid import NAMESPACE_URL, uuid5
 from scam2market.common.time import utc_now
 from scam2market.ingestion.quality import SourceQualityTracker
 from scam2market.monitoring.telemetry import GUARDRAIL_REJECTIONS
+from scam2market.resilience.batching import bounded_batches
 from scam2market.schemas.domain import MarketCandle, MarketTrade, OrderBookUpdate
 from scam2market.schemas.events import CanonicalEvent, EventType, ReplayMetadata
 from scam2market.security.guardrails import inspect_ingestion_payload, inspect_market_payload
@@ -272,9 +273,19 @@ class MarketIngestionService:
             raise
 
     async def run_provider(
-        self, provider: MarketProvider, replay_session_id: str | None = None
+        self,
+        provider: MarketProvider,
+        replay_session_id: str | None = None,
+        *,
+        max_batch_size: int = 50,
+        max_wait_seconds: float = 0.25,
     ) -> int:
         accepted = 0
-        async for event in provider.stream(replay_session_id):
-            accepted += int(await self.ingest(event))
+        async for batch in bounded_batches(
+            provider.stream(replay_session_id),
+            max_batch_size=max_batch_size,
+            max_wait_seconds=max_wait_seconds,
+        ):
+            for event in batch:
+                accepted += int(await self.ingest(event))
         return accepted
